@@ -2,6 +2,7 @@
 
 library(dplyr)
 library(ggplot2)
+library(readxl)
 Rename <-   function(values_to, index_from, from_column){
     result <- (values_to[match(from_column, index_from)])
     return(result)
@@ -10,7 +11,9 @@ Rename <-   function(values_to, index_from, from_column){
 ##########################################
 ##########################################
 #SUMMARIES OF TREES BY PLOT 
-df <- read_excel("~/Desktop/big sur/Big Sur Github/bigsuraccessdata/LRosenthal_3_26_2018_Masterfromkerriemail.xlsx")
+df <- read_excel("/Users/lisarosenthal/Box Sync/big sur/Big Sur Github/bigsuraccessdata/LRosenthal_3_26_2018_Masterfromkerriemail.xlsx")
+
+#data selecting, adding columns and cleaning up
 df2 <- df %>% filter(SampleYear %in% c(2006, 2007)) %>% 
   select("BSPlotNumber", "ForestAllianceType", "StemNumber", "TreeNumber", "Species", "DBH", "Status", "CankerTrunkSymptoms":"TwigBasalSproutSymptoms", "Canker", "PramCulturePositive", "PramPCRPositive") %>% 
   filter(!is.na(Status), !Species=="MISSING", !is.na(DBH)) %>% 
@@ -84,8 +87,9 @@ ggplot(dat, aes(Species2, IV.tot)) +
   geom_col()
 
 dat$Species2 <- reorder(dat, "n.plots")
-ggplot(dat, aes(Species2, n.plots)) +
-  geom_col()
+ggplot(dat %>% filter(n.plots>0), aes(Species2, n.plots)) +
+  geom_col()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
  # geom_point(aes(Species2, IV.tot*200)) + geom_point(aes(Species2, IV.mean*200), color="blue")
 ggplot(dat, aes(log(n.plots), log(IV.tot))) +
   geom_point() +

@@ -151,92 +151,107 @@ plot(log(getData(model)$countS) ~ predict(model)) + abline(0,1)
 
 
 #do it by hand
-#assume leaves are normally distributed around the individual mean
-#assume individuals are normally distributed around the species mean
-#generate a massive dataset with 1000 simulated ind and leaves
-#sample from that dataset with schemes of interest. run model and evaluate output
-
-#figure out what the distribution of the count data look like
-ggplot(wideT, aes(countS, group=interaction(species, ind), color=ind))+
-  geom_density()+
-  facet_wrap(~species)
-ggplot(wideT, aes(countS))+
-  geom_density()
-#maybe gamma?
-fitdistr(wideT$countS[wideT$countS>0], "Gamma")
-par.ind <- wideT %>% mutate(countS=countS+1) %>% group_by(species, ind) %>% summarise(shape=fitdistr(countS, "Gamma")$estimate[1], rate=fitdistr(countS, "Gamma")$estimate[2])
-
-#for now, just assume individuals and leaves come from normal distribtuion
-
-#get parameters from the data
-#assume leaves are sampled from a normal distribution centered around each individual's mean
-par.ind <- wideT %>% group_by(species, ind) %>% 
-  summarise(mu=mean(countS), s=sd(countS), cv=s/mu)
+#simulate new data:
+#y = species_effect + ind_effect + resids
 #assume individuals are sampled from a normal distribution centered around each species' mean
-par.sp <- wideT %>% group_by(species) %>% 
-  summarise(mu=mean(countS), s=sd(countS), cv=s/mu)
-#assume cv of variation is normally distributed. 
-par.cv <- par.ind %>% group_by(species) %>% summarise(mu=mean(cv), s=sd(cv))
+#assume leaves are sampled from a normal distribution centered around each individual's mean
 
-#generate additional data
-set.seed(1)
-nlvs=100
-nind=100
-l <- list(NULL)
-for(s in 1:nrow(par.sp)){ #for each species
+#first get parameters from the data
+#species effect, individual effect, residuals
+#resids = obs_i - sp_i - ind_i
+mu.sp <- wideT %>% group_by(species) %>% 
+  summarise(mu.sp=mean(countS))
+mu.ind <- wideT %>% group_by(species, ind) %>% 
+  summarise(mu.ind=mean(countS))
+tmp <- wideT %>% select(species, ind, countS) %>% left_join(mu.sp) %>% left_join(mu.ind) %>% 
+  mutate(ind.eff = mu.ind - mu.sp,
+         resid = countS - mu.sp - ind.eff)
+ggplot(tmp, aes(species, resid, group=interaction(species, ind)))+
+  geom_boxplot() #since the residuals vary by species, adding residuals drawn from the same distribution doesn't seem right.
+
+#resid variance increase with the response variable
+ggplot(tmp, aes(countS, resid))+
+  geom_point()
+
+
+#establish simulated levels for within species and individual replication
+
+sim.fun <- function(ninds, nleaves){
+  ind.eff <- tmp %>% group_by(species) %>% summarise(m.ind = mean(ind.eff), sd.ind= sd(ind.eff)) #need sd of individual effect
+  resids.eff <-  tmp %>% group_by(species) %>%  summarise(sd.resid= sd(resid)) #need sd of residuals, grouped by species
   
-  #calculate mean of each individual
-  mu_j <- rnorm(nind, par.sp$mu[s], par.sp$s[s]) 
-  mat <- matrix(NA, nrow=nlvs, ncol=length(mu_j))
+  #for each individual, simulate new individual effects from the mean and sd of the data's ind effects
+  sim.ind <- function(x) rnorm(ninds, 0, ind.eff$sd.ind[x])
+  sim.ind.eff <- sapply(1:nrow(ind.eff), sim.ind) 
+  dfind <- data.frame(species=rep(unique(tmp$species), each=ninds ) , ind=1:ninds, ind.eff = as.vector(sim.ind.eff))
+  #newdesign %>% left_join(mu.sp) %>% left_join(dfind) %>% head
   
-  for(i in 1:length(mu_j)){ #for each individual
-    #generate more leaves 
-    cv_j <- rnorm(1, par.cv$mu[s], par.cv$s[s])#calculate sd from cv
-    y_ji <- rnorm(nlvs, mu_j[i], sd = abs(cv_j*mu_j[i]))
-    mat[,i] <- y_ji
-  }
-  #turn the matrix into a dataframe
-  m <- melt(mat) 
-  names(m) <-  c("leaf", "ind", "countS")
-  m$species <- par.sp$species[s]
-  head(m)
+  #for each leaf, simulate residuals based off the sd of the residuals, grouped by species and add to the dataframe
+  sim.resid <- function(x) rnorm(ninds*nleaves, 0, resids.eff$sd.resid[x])
+  sapply(1:nrow(ind.eff), sim.resid) 
+  dfresid <- data.frame(species=rep(unique(tmp$species), each=ninds*nleaves ) , ind=1:ninds, leaf=rep(1:nleaves, each=ninds),  resid = as.vector(sapply(1:nrow(ind.eff), sim.resid) ))
   
-  #add to a list
-  l[[s]] <- m
+  #merge simulated data with the simulated design
+  newdesign <- expand.grid(species=unique(tmp$species), ind=1:ninds, leaf=1:nleaves)
+  newdesign2 <- newdesign %>% left_join(mu.sp, by = "species") %>% 
+    left_join(dfind, by = c("species", "ind")) %>% left_join(dfresid, by = c("species", "ind", "leaf")) %>% mutate(countS.est = mu.sp + ind.eff + resid)
+  #newdesign2 %>% group_by(species, ind) %>% summarise(n())
+  
+  #hacky way of dealing with negative numbers: turn them into zeros? and round counts.
+  newdesign3 <- newdesign2 %>% mutate(countS.est= ifelse(countS.est >= 0, countS.est, 0)) %>% mutate(countS.est = round(countS.est))
+  
+  return(newdesign3)
 }
 
-master <- bind_rows(l)
-master2 <- filter(master, countS>=0) %>%  #take only positive counts
-  mutate(countS=round(countS) )#round all the counts to integers. a case for poisson or nbinom
-ggplot(master2, aes(species, countS))+
+dat <- sim.fun(16, 2)
+dat %>% arrange(species) %>% head
+ggplot(dat, aes(species, countS.est, group=interaction(species, ind))) +geom_boxplot()
+m2sim <- glmer.nb(countS.est ~ -1 + species + (1 | species:ind), data=dat, control=glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=2e5)))
+m2sim1 <- glmer(countS.est ~ -1 + species + (1 | species:ind), data=dat, family = poisson)
+summary(m2sim1)
+deviance(m2sim1)/df.residual(m2sim1) #not equal to 1, so overdispersed.
+
+
+dat <- sim.fun(32, 1)
+ggplot(dat, aes(species, countS.est)) +geom_boxplot()
+ggplot(dat, aes(species, countS.est, group=interaction(species, ind))) +geom_point(alpha=.5)
+
+m2sim <- MASS::glm.nb(countS.est ~ -1 + species, data=dat)
+summary(m2sim)
+m2sim2 <- glm(countS.est ~ -1 + species, data=dat, family=quasipoisson())
+summary(m2sim2)
+plot(m2sim2)
+coefplot( m2sim2)
+
+#after 1000 simulations, get mean and sd of countS for each species
+#potential combinations within a tractable range: about 32 samples per species
+#1:32, 2:16, 3:11, 4:8, 5:6 
+L <- list(NULL)
+for(i in 1:100){
+  dat <- sim.fun(3, 50)
+  datmean <- dat %>% group_by(species) %>% summarise(mu = mean(countS.est))
+  L[[i]] <- datmean$mu
+}
+#rows are unique(dat$species) and in that order
+test <- bind_cols(L) 
+test2 <- data.frame(species = unique(dat$species), mean=apply(test, 1, mean), sd=apply(test, 1, sd))
+
+ggplot(test2, aes(species, mean)) +
+  geom_point()+
+  geom_linerange(aes(ymin=mean-sd, ymax=mean+sd))+
+  ylim(0,2000)
+
+#real data
+wideT %>% group_by(species) %>% summarise(mean=mean(countS), sd(countS), se=sd(countS)/sqrt(6)) %>% 
+  ggplot(., aes(species, mean)) +
+  geom_point()+
+  geom_linerange(aes(ymin=mean-se, ymax=mean+se))+
+  ylim(0,2000)
+
+ggplot(wideT, aes(species, countS, group=interaction(species, ind)))+
   geom_boxplot()
-ggplot(master2, aes( countS))+
-  geom_density()+
-  facet_wrap(~species)
 
-#sample from the larger master dataset
-#the number of individuals and leaves you're interested in sampling
-indsamp=3
-lvssamp=6
-inds <- sample(1:nind, indsamp, replace = F)
-master3 <- master2 %>% 
-  filter(ind %in% inds) %>% #filter just the selected ind
-  group_by(species, ind) %>%sample_n(lvssamp) #sample individuals
 
-test <- function(indsamp, lvssamp){
-  inds <- sample(1:nind, indsamp, replace = F)
-  master3 <- master2 %>% 
-    filter(ind %in% inds) %>% #filter just the selected ind
-    group_by(species, ind) %>%sample_n(lvssamp) #sample individuals
-  msim <- update(m2, data=master3)
-  fixef(msim)
-}
-
-replicate(10, sample(1:nind, indsamp, replace = F))
-msim2 <- update(m2, data=master3)
-msim3 <- update(m2, data=master3)
-multiplot(m2, msim, msim2, msim3)
-multiplot(m2)
 
 
 ###
