@@ -13,7 +13,7 @@ df <- expand.grid(species=broads, ind=1:ninds, easting=NA, northing=NA, general_
 df <- df %>% arrange(species)
 head(df)
 
-write.csv(df, file="data_sheets2019/collection_broadlvs.csv", row.names = F, na = "") #specify NA as blank
+#write.csv(df, file="data_sheets2019/collection_broadlvs.csv", row.names = F, na = "") #specify NA as blank
 
 #trip 2: collect leaves from 32 individuals of each conifer species and 10 individuals of UMCA and LIDE
 conifers <- c("PIPO", "SESE", "PSME")
@@ -24,7 +24,7 @@ df3 <- expand.grid(species=c("UMCA", "LIDE"), ind=1:10, easting=NA,northing=NA, 
 df4 <- rbind(df2, df3) %>% arrange(species) 
 head(df4)
 
-write.csv(df4, file="data_sheets2019/collection_conifers.csv", row.names = F, na = "") #specify NA as blank 
+#write.csv(df4, file="data_sheets2019/collection_conifers.csv", row.names = F, na = "") #specify NA as blank 
 
 ############################################################
 ############################################################
@@ -33,10 +33,12 @@ df5 <- expand.grid(leafID=NA, leafID2=NA, species=broads, ind=1:ninds, trt=c("T"
 #create empty columns
 colvector <- c("processor", "symptoms", "sp_viable", "inf_viable", "counter", "date_counted", paste0("count", 1:4), paste0("vol", 1:4), "lesion_size", "notes") #cols to be filled with NA
 df5[colvector] <- NA #create those col and fill with NA
-head(df5)
 
 #Oh, actually, I'm going to remove the samples where chlamydospore counting isnt possible. That is going to be quch, qupa and quag. 
 df5 <- df5 %>% filter(!(species %in% c("QUCH", "QUPA", "QUAG") & spore_assay == "C"))
+
+#Also, I want to reduce the number of controls to only 10. They act as just negative controls and most likely will be qualitative checks that the leaves aren't already contaminated. 10 seems fine. 
+df5 <- df5 %>% filter(!(ind>10 & trt == "C"))
 
 #assign unique IDs
 df5 <- df5 %>% 
@@ -44,9 +46,12 @@ df5 <- df5 %>%
          leafID2 = paste0(leafID, spore_assay)) %>% 
   arrange(leafID)
 head(df5)
-length(df5$leafID2)#cut it down from 1280 to 1088. that's nice! unfortunately it only cuts out chlamydos and it doesn't reduce the number of petri plates. 
+length(df5$leafID2)#cut it down from 1280 to 714! Thats with fewer controls and no oak chlamydos. Now have to figure out the best way to arrange the samples so that we don't screw up.
 
+#goal is to have about 500ish total sporangia samples (control and treatment), which corresponds to the max number of samples we can possibly process in one day.
+sum(df5$spore_assay=="S") #420, with 32 samples per species. 
 View(df5)
+
 #master data sheet for processing detached leaf assays
 df6a <- expand.grid(leafID=NA, leafID2=NA, species=conifers, ind=1:ninds, trt=c("T", "C"), spore_assay=c("S", "C"))
 df6b <- expand.grid(leafID=NA, leafID2=NA, species=c("UMCA", "LIDE"), ind=1:10, trt=c("T", "C"), spore_assay=c("S", "C"))
@@ -54,9 +59,12 @@ df6 <- rbind(df6a, df6b)
 df6[colvector] <- NA
 head(df6)
 
+#reduce the number of controls to only 10. 
+df6 <- df6 %>% filter(!(ind>10 & trt == "C"))
+
 #assign unique IDs. making ID continuous from the leaf discs. 
 df6 <- df6 %>% 
-  mutate(leafID = group_indices(., species, trt, ind) + max(df5$leafID), 
+  mutate(leafID = group_indices(., species, trt, ind) + max(df5$leafID),
          leafID2 = paste0(leafID, spore_assay)) %>% 
   arrange(leafID)
 head(df6)

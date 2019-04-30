@@ -297,3 +297,8 @@ ggplot(wideT, aes(species, countC, group=interaction(species, ind))) +
 ggplot(wideT, aes(species, countC+1, group=interaction(species, ind))) +
   geom_boxplot() +
   scale_y_continuous(trans='log10')
+
+#how many sporangia samples did we process last time? that should be the ceiling
+head(wide)
+summary(wide)
+nrow(wide) #504 samples including control and treatment
