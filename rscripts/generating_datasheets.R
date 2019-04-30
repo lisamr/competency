@@ -22,4 +22,4 @@ df3 <- expand.grid(Species=c("UMCA", "LIDE"), Ind=1:10, Easting=NA, Northing=NA,
 df4 <- rbind(df2, df3) %>% arrange(Species) 
 head(df4)
 
-write.csv(df4, file="data_sheets/collection_conifers.csv", row.names = F, na = "") #specify NA as blank
+write.csv(df4, file="data_sheets/collection_conifers.csv", row.names = F, na = "") #specify NA as blank 

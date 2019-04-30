@@ -56,7 +56,7 @@ eval(m3) #nbinom: same as poisson
 coef(summary(m2))[2,4] #p-value for species effect
 
 #now loop this. can change species easily.
-N=1:50
+N=seq(1, 50, by=5)
 A="QUKE"
 B="TODI"
 pvec <- NULL

@@ -281,4 +281,19 @@ ggplot(m3cidf[1:12,], aes(est, species))+
   #geom_errorbarh(aes(xmin=est-SE, xmax=est+SE), height=.1)+
   labs(x="# sporangia per leaf disc", y="species")
 
-
+####################################################
+####################################################
+#I'm thinking of removing some species for the redo experiment. ARME, HEAR, and VAOV seem like they didn't sporulate much. 
+wideT %>% group_by(species) %>% summarise(
+  muS = mean(countS), maxS = max(countS), 
+  muC = mean(countC), maxC = max(countC))
+ggplot(wideT, aes(species, countS, group=interaction(species, ind))) +
+  geom_boxplot() 
+ggplot(wideT, aes(species, countS+1, group=interaction(species, ind))) +
+  geom_boxplot() +
+  scale_y_continuous(trans='log10')
+ggplot(wideT, aes(species, countC, group=interaction(species, ind))) +
+  geom_boxplot() 
+ggplot(wideT, aes(species, countC+1, group=interaction(species, ind))) +
+  geom_boxplot() +
+  scale_y_continuous(trans='log10')
