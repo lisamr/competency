@@ -7,6 +7,7 @@ library(ggplot2)
 
 wide <- read.csv("data/MASTERMERGED_wide.csv")
 head(wide)
+
 #clean up data. remove CEOL (only 1 ind)
 wideT <- filter(wide, trt=="T", !is.na(countS), species!="CEOL") %>% mutate(ind2=interaction(species, ind)) %>% droplevels()
 wideT %>% group_by(species, ind) %>% summarise(min(countS), max(countS)) 
@@ -32,9 +33,12 @@ ggplot(wideT, aes(p.areaS, log(countS))) +
 #Q3. It looks like lesion area correlates with sporangia for some species but not for others. I think I should keep the lesion size just so I can address this part of the story.
 ggplot(wideT, aes(p.areaS, (countS), color=species)) +
   geom_point() +
-  facet_wrap(~species)
+  facet_wrap(~species, scales='free_y')
 ggplot(wideT, aes(p.areaS, log(countS), color=species)) +
   geom_point() +
   facet_wrap(~species)
 
+#check out the leaf discs that were asymptomatic
+wideT %>% filter(p.areaS <.25) %>% select(species, ind, leaf, countS, p.areaS)
+wide %>% filter(species=="VAOV", trt=="T", is.na(countC)) %>% select(species, ind, leaf, countS, p.areaS)
 

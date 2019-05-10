@@ -31,10 +31,11 @@ sumtab <- wideT %>% group_by(species, ind) %>% summarise(mu=mean(countS)) %>% gr
 #simulate additional data to see how many replicates you need to tell speciesA and speciesB apart.
 ggplot(wideT %>% filter(!species=="ACMA"), aes(species, countS))+
   geom_boxplot()
+
 #todi and umca seem like good species to compare
 N=20
 A="UMCA"
-B="TODI"
+B="RHCA"
 spA <- rnorm(N, sumtab$mean[sumtab$species==A], sumtab$sd[sumtab$species==A]) %>% round %>% ifelse(. < 0, 0, .)
 spB <- rnorm(N, sumtab$mean[sumtab$species==B], sumtab$sd[sumtab$species==B]) %>% round %>% ifelse(. < 0, 0, .)
 dat <- data.frame(species= c(rep(A, length(spA)), rep(B, length(spB))), spores=c(spA, spB))
@@ -57,10 +58,11 @@ coef(summary(m2))[2,4] #p-value for species effect
 
 #now loop this. can change species easily.
 N=seq(1, 50, by=5)
-A="QUKE"
-B="TODI"
-pvec <- NULL
+A="LIDE"
+B="QUCH"
 nsims <- 500
+pvec <- rep(NA, nsims)
+
 m <- matrix(NA, ncol = nsims, nrow=length(N))#matrix to be filled with simulated pvalues
 
 for (j in 1:length(N)) {#for each # of replicates
@@ -86,5 +88,5 @@ for (j in 1:length(N)) {#for each # of replicates
 pow <- apply(m, 1, function(x)sum(x<=.05)/length(x))
 df <- data.frame(N, pow)
 par(mfrow=c(1,1))
-plot(df)+abline(.80, 0, lty=2)
+plot(df, type='b', ylim=c(0,1))+abline(.80, 0, lty=2)
 
