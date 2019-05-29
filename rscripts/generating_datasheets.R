@@ -43,7 +43,7 @@ spcont <- c("ARME", "TODI", "HEAR", "CEOL", "ACMA")
 #species with 32 controls: UMCA, LIDE, QUAG, QUCH, QUPA (can be asymptomatic, and bay)
 
 #reduce the number of controls to only 10 for the above species. 
-df5 <- df5 %>% filter(!(ind>10 & trt == "C" & species %in% spcont))
+df5 <- df5 %>% filter(!(ind %in% c(3,4,5,6,7,8,11,12,13,14,15,16,19,20,21,22,23,24,27,28,31,32) & trt == "C" & species %in% spcont))
 
 #assign unique IDs
 df5 <- df5 %>% 
@@ -55,29 +55,28 @@ length(df5$leafID2)#cut it down from 1280 to 868! Thats with fewer controls and 
 
 #goal is to have about 500ish total sporangia samples (control and treatment), which corresponds to the max number of samples we can possibly process in one day.
 sum(df5$spore_assay=="S") #530 sporangia samples. no -->#420, with 32 samples per species. 
-View(df5)
 
 #how many individuals? divide that by 4 to get quarter plates
 length(unique(df5$leafID))/4
 
 #master data sheet for processing detached leaf assays
 df6a <- expand.grid(leafID=NA, leafID2=NA, species=conifers, ind=1:ninds, trt=c("T", "C"), spore_assay=c("S", "C"))
+#reduce the number of controls to only 10. 
+df6a <- df6a %>% filter(trt=="T"| ind %in% c(1,2,5,6,9,13,17,21,25,29) & trt == "C")
 df6b <- expand.grid(leafID=NA, leafID2=NA, species=c("UMCA", "LIDE"), ind=1:10, trt=c("T", "C"), spore_assay=c("S", "C"))
 df6 <- rbind(df6a, df6b)
 df6[colvector] <- NA
 head(df6)
 
-#reduce the number of controls to only 10. 
-df6 <- df6 %>% filter(!(ind>10 & trt == "C"))
-
 #assign unique IDs. making ID continuous from the leaf discs. 
 df6 <- df6 %>% 
-  mutate(leafID = group_indices(., species, trt, ind) + max(df5$leafID),
-         leafID2 = paste0(leafID, spore_assay)) %>% 
+  mutate(
+    leafID = group_indices(., species, trt, ind) + max(df5$leafID),
+    leafID2 = paste0(leafID, spore_assay)) %>% 
   arrange(leafID)
 head(df6)
 
-sum(df6$spore_assay=="C") + sum(df5$spore_assay=="C") + sum(df6$species %in% c("UMCA", "LIDE") & df6$spore_assay=="S") # 500 2 ml KOH tubes
+sum(df6$spore_assay=="C") + sum(df5$spore_assay=="C") + sum(df6$species %in% c("UMCA", "LIDE") & df6$spore_assay=="S") # 544 2 ml KOH tubes
 
 #figuring out numbers of tubes
 #2 ml KOH
@@ -90,13 +89,38 @@ df6 %>% filter(spore_assay=="S" & species %in% c("LIDE", "UMCA")) %>% pull(leafI
 
 #how to label the quarter plates
 df5 %>% group_by(species) %>% summarise(min(leafID), max(leafID))
-df5 %>% group_by(species, trt) %>% 
+tab <- df5 %>% group_by(species, trt) %>% 
   summarise(nsamples = length(unique(leafID)), 
             firstnum = min(leafID), 
             lastnum = max(leafID))
+#write.csv(tab, "output/petritable.csv", row.names = F)
+
+#tubes to write sporangia labels
+tab2 <- df5[,1:6] %>% filter(spore_assay=="S") %>%   
+  group_by(species, trt) %>% 
+  mutate(tube=row_number()) %>%
+  mutate(striptube = case_when(
+    tube %in% 1:8 ~ 1,
+    tube %in% 9:16 ~ 2,
+    tube %in% 17:24 ~ 3,
+    tube %in% 25:32 ~ 4)) %>% 
+  group_by(species, trt, striptube) %>% 
+  summarise(first=min(leafID), last=max(leafID))
+#write.csv(tab2, "output/labeltubetable.csv", row.names = F)
+tab3 <- df6[,1:6] %>% filter(spore_assay=="S", !species%in%c("UMCA", "LIDE")) %>%   
+  group_by(species, trt) %>% 
+  mutate(tube=row_number()) %>%
+  mutate(striptube = case_when(
+    tube %in% 1:8 ~ 1,
+    tube %in% 9:16 ~ 2,
+    tube %in% 17:24 ~ 3,
+    tube %in% 25:32 ~ 4)) %>% 
+  group_by(species, trt, striptube) %>% 
+  summarise(first=min(leafID), last=max(leafID))
+#write.csv(tab3, "output/labeltubetableconifers.csv", row.names = F)
 
 #########
 #export master files to csv
-write.csv(df5, file="data_sheets2019/master_broadlvs.csv", row.names = F, na = "") #specify NA as blank 
-write.csv(df6, file="data_sheets2019/master_conifers.csv", row.names = F, na = "") #specify NA as blank 
+#write.csv(df5, file="data_sheets2019/master_broadlvs.csv", row.names = F, na = "") #specify NA as blank 
+#write.csv(df6, file="data_sheets2019/master_conifers.csv", row.names = F, na = "") #specify NA as blank 
 
