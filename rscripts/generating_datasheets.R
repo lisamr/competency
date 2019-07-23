@@ -107,7 +107,7 @@ tab2 <- df5[,1:6] %>% filter(spore_assay=="S") %>%
   group_by(species, trt, striptube) %>% 
   summarise(first=min(leafID), last=max(leafID))
 #write.csv(tab2, "output/labeltubetable.csv", row.names = F)
-tab3 <- df6[,1:6] %>% filter(spore_assay=="S", !species%in%c("UMCA", "LIDE")) %>%   
+tab3 <- df6[,1:6] %>% filter(spore_assay=="S") %>%   
   group_by(species, trt) %>% 
   mutate(tube=row_number()) %>%
   mutate(striptube = case_when(
