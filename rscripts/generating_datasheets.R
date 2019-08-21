@@ -124,3 +124,12 @@ tab3 <- df6[,1:6] %>% filter(spore_assay=="S") %>%
 #write.csv(df5, file="data_sheets2019/master_broadlvs.csv", row.names = F, na = "") #specify NA as blank 
 #write.csv(df6, file="data_sheets2019/master_conifers.csv", row.names = F, na = "") #specify NA as blank 
 
+#########
+library(tidyverse)
+library(reshape2)
+#create datasheet for recording conifers. going to merge sporangia and chlamydo counts togehter
+df6 %>% select(leafID, species, ind, trt, spore_assay, date_counted, notes) %>% head
+df6spores <- df6 %>% select(leafID, species, ind, trt, spore_assay, date_counted, notes) %>% dcast(species+ind+trt+leafID~1:4+spore_assay) %>% arrange(leafID)
+
+#export csv
+write.csv(df6spores, file="data_sheets2019/spores_conifers.csv", row.names = F, na = "") #specify NA as blank 
