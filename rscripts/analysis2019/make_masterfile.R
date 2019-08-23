@@ -5,8 +5,11 @@
 setwd("~/Box/Competency project/competency.git/data2019")
 library(dplyr)
 library(ggplot2)
+rm(list=ls())#clear environment
 
 df <- readxl::read_excel('master_bothassays.xlsx')
+gps <- readxl::read_excel('plant_collection2019.xlsx')
+
 #convert random numbers to actual dates
 df$date_counted <- as.Date(as.numeric(df$date_counted), origin = as.Date("1899-12-31"))
 df$perc_lesion <- as.numeric(df$perc_lesion) #character for some reason
@@ -41,5 +44,8 @@ dfinal <- rbind(ndat, df) %>%
   filter(!duplicated(leafID2)) %>% 
   arrange(leafID)
 #View(dfinal)
+
+#merge gps data to master file
+dfinal <- merge(gps, dfinal, by=c("species", "ind")) %>% arrange(leafID)
 
 write.csv(dfinal, "master_tall.csv", row.names = F)
