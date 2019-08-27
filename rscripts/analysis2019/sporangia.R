@@ -15,7 +15,7 @@ df1 <- df %>% filter(leafID<=530)
 #DATA VIZ
 
 #plot sporangia counts on a map for select species
-df1 %>% filter(spore_assay=="S", trt=="T", species=="TODI") %>% 
+df1 %>% filter(spore_assay=="S", trt=="T", species=="TODI") %>%
 ggplot(aes(easting, northing)) +
   geom_point(aes(color=count1))+
   scale_color_viridis_c()
@@ -29,12 +29,6 @@ df1<- df1 %>% rowwise() %>% mutate(countm=mean(c(count1, count2, count3), na.rm 
 #plot it. well they aren't all that different!
 df1 %>% filter(spore_assay=="S", !countm==0, trt=="T") %>% 
 ggplot( aes(species, log(countm)))+
-  geom_boxplot()+
-  geom_point(alpha=.4)
-
-#there's a fair amount of zeros. I wonder if it's warranted to do a zero inflated model. anyways, viz omitting <1.
-df1 %>% filter(spore_assay=="S", !countm<1, trt=="T") %>% 
-  ggplot( aes(species, log(countm)))+
   geom_boxplot()+
   geom_point(alpha=.4)
 
@@ -52,63 +46,15 @@ dtall <- melt(df2, id.vars = c("species", "leafID", "leafID2"), measure.vars = c
   arrange(leafID) 
 
 #I get convergence issues and I forget how to read these model outputs
-m1 <- glmer(count ~ species + (1|leafID), data = dtall, family = "poisson")
-summary(m1)
-m2 <- glmer.nb(count ~ species + (1|leafID), data = dtall)
-summary(m2)
+#m1 <- glmer(count ~ species + (1|leafID), data = dtall, family = "poisson")
+#summary(m1)
+#m2 <- glmer.nb(count ~ species + (1|leafID), data = dtall)
+#summary(m2)
 
 ########################################
 #BAYESIAN STATS?
-#goal: create a mixture model (zero-inflated) with a poisson likelihood and leafID as random intercept
+#goal: create a model with a poisson likelihood and leafID as random intercept
 library(rethinking)
-
-#troubleshoot by using only 1 count. not mixed model.
-df3 <- df2 %>% select(species, count1) %>% filter(!is.na(count1)) %>% rename(count=count1)
-df3 <- df3[-26,] #for now remove acma outlier
-
-#analyze data with stan
-dat <- list(
-  count=df3$count,
-  species=as.integer(factor(df3$species))#species to numeric index. make sure index is consecutive.
-)
-
-#model it
-m3 <- ulam(
-  alist(
-    count ~ dpois(lambda),
-    log(lambda) <- a[species], #likelihood
-    a[species] ~ dnorm(3, 1.5) #fixed effect
-  ), data=dat, chains=3
-)
-
-traceplot(m3) #looks good
-dev.off()
-
-#check out results
-spnames <- levels(factor(df3$species))
-precis(m3, depth = 2) %>% plot
-
-#check out posterior means 
-post <- extract.samples(m3)
-post <- post$a
-post2 <- exp(post)
-postm <- apply(post2, 2, mean)
-
-#check out how well the model fits the data. predict new data points from model and contrast with real data.
-postpred <- sim(m3, data = data.frame(count= postm, species=1:10))
-
-preddf <- as.data.frame(postpred) 
-names(preddf) <- spnames
-preddf <- melt(preddf)
-names(preddf) <- c("species", "count")
-
-#fit doesn't look that great. let's use a better model (and more data)
-preddf2 <- rbind.data.frame(cbind(preddf, type="pred"), cbind(df3, type="obs"))
-ggplot(preddf2, aes(count, group=type, fill=type))+
-  geom_density(alpha=.5)+
-  facet_wrap(~species, scales = 'free')
-###################################
-#mixed model with all 3 counts. leafID is a random effect
 
 #analyze data with stan
 #make sure index variables are consecutive integers
@@ -135,7 +81,7 @@ m4 <- ulam(
     sigma_b ~ dexp(1)
   ), data=dat2, chains=3
 )
-traceplot(m4) #the alphas dont look amazing
+#traceplot(m4) #the alphas dont look amazing
 par(mfrow=c(1,1))
 stancode(m4)#check out stan code
 
@@ -180,18 +126,62 @@ fdens("ARME", ymax=3, xmax=10)
 fdens("CEOL", ymax=3, xmax=10)
 
 #understand what the model is saying...
-precis(m4, depth = 2, pars = c("a", "b_bar", "sigma_b")) %>% plot(labels=c(spp, "b_bar", "sigma_b"))
+precis(m4, depth = 2, pars = c("a")) %>% plot(labels=c(spp, "b_bar", "sigma_b"), xlim=c(0,5), xlab="species coef (log-sporangia)")
+
+#compare to data. not sure why alpha is so different from observed data. 
+head(df2)
+df2 %>% group_by(species) %>% summarise(mean(countm, na.rm=T))
+sapply(1:10, function(x) exp(mean(ex$a[,x]))) 
 
 ####################
+#need help on this...
 #get back transformed mean and sd values of counts
-####################
+#create data to predict from, omitting the redundant subsamples
+omit <- which(duplicated(dat2$leafID))
+datpred <- list(
+  species=dat2$species[-omit],
+  leafID=dat2$leafID[-omit]
+)
 
+p <- link(m4, datpred)
+colnames(p) <- spp[datpred$species]
+fmean <- function(x){
+  use <- which(colnames(p)==x)
+  test <- p[,use]
+  mean(apply(test, 1, mean))
+}
+fint <- function(x){
+  use <- which(colnames(p)==x)
+  test <- p[,use]
+  HPDI(apply(test, 1, mean))
+}
+sapply(spp, fmean)
+sapply(spp, fint)
+
+backt <- exp(ex$a)
+backtm <- apply(backt, 2, mean)
+backtHPDI <- apply(backt, 2, HPDI, .95)
+backtHPDI2 <- apply(backt, 2, HPDI, .5)
+backtdf <- data.frame(spp, backtm, t(backtHPDI), t(backtHPDI2))
+names(backtdf) <- c("spp", "mean", "lower95", "upper95", "lower50", "upper50")
+
+#plot a backtransformed coefficient plot
+backtdf$spp <- factor(backtdf$spp, rev(levels(backtdf$spp))) #reverse order for plot
+p1 <- ggplot(backtdf, aes(mean, spp))+
+  geom_errorbarh(aes(xmin=lower95, xmax=upper95), height=.1, color="gray25")+
+  #geom_errorbarh(aes(xmin=lower50, xmax=upper50), height=.2, color="gray25")+
+  geom_point() +
+  labs(x="mean # sporangia per leaf disc", y="Species")+
+  theme_bw() 
+p1
+
+
+####################
 #contrasts between species
-ex$a %>% head #posterior of species effects
-post_a <- ex$a
+#ex$a %>% head #posterior of species effects
 pairs <- combn(1:10,2)
 f <- function(x){
-  spdiff <-  post_a[,pairs[1,x]]-post_a[,pairs[2,x]]
+  spdiff <-  ex$a[,pairs[1,x]]-ex$a[,pairs[2,x]]
   HPDI(spdiff, .95)
 }
 diffs <- sapply(1:ncol(pairs), f)
@@ -202,7 +192,7 @@ diffsdf <- diffsdf %>%
          sp2=spp[diffsdf[,2]],
          sig=sign(diffsdf[,3])==sign(diffsdf[,4]))
 diffsdf
-write.csv(diffsdf, row.names = F, "~/Box/Competency project/competency.git/output/sporangiacontrasts.csv")
+#write.csv(diffsdf, row.names = F, "~/Box/Competency project/competency.git/output/sporangiacontrasts.csv")
 
 ##########################################
 #RELATIONSHIP WITH LESION SIZE?
@@ -222,7 +212,8 @@ ggplot(dtall2, aes(count, perc_lesion))+
 df1 %>% filter(trt=="T") %>% 
 ggplot(aes(countm, perc_lesion))+
   geom_point()+
-  facet_wrap(~species, scales = "free_x")
+  facet_wrap(~species, scales = "free_x") +
+  labs(x="mean # sporangia")
 
 ##########################################
 #RELATIONSHIP WITH chlamydospores? theres a paucity of species (6) with chlamydo counts.

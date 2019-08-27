@@ -44,3 +44,10 @@ df1 %>% filter( !count_est<1) %>%
   geom_boxplot()+
   geom_point(alpha=.4)
 
+
+#chlamydos vs lesion size?
+df1 %>% 
+  ggplot( aes(count_est, perc_lesion))+
+  geom_point(alpha=.4)+
+  facet_wrap(~species, scales = 'free_x')
+
