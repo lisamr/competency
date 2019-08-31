@@ -173,16 +173,15 @@ diffsdf
 
 #compare to data. not sure why alpha is so different from observed data. maybe there's just a lot of intraindividual variation? 
 head(df2)
-summ <- df2 %>% group_by(species) %>% summarise(mean=mean(countm, na.rm=T))
+summ <- df2 %>% group_by(species) %>% summarise(obsmean=mean(countm, na.rm=T))
 ex <- extract.samples(m5)
 am <- sapply(1:10, function(x) mean(exp(ex$a[,x]))) 
 api <- sapply(1:10, function(x) PI(exp(ex$a[,x]))) %>% t
 cbind(summ, am, api)
 ####################
-#need help on this...
 #get back transformed mean and sd values of counts
 #simulate data and get the means and sd???
-str(ex)#not sure how to do with m5
+str(ex)#not sure how to do with m5 when it doesn't have mu and sigma for intra-ind variation ('beta')
 
 #gonna do it with m4
 #log(lambda) <- a[species] + b[leafID]
@@ -193,14 +192,16 @@ praw <- exp(loglam)
 head(praw)
 plam <- apply(praw, 2, mean)
 pPI <- apply(praw, 2, PI, .9) %>% t %>% as.data.frame
-names(pPI) <- c("lo", 'hi')
+names(pPI) <- c("lo5", 'hi95')
 psd <- apply(praw, 2, sd)
-estcounts <- data.frame(summ, plam, pPI)
+estcounts <- data.frame(summ, plam, pPI, psd)
+estcounts <- data.frame(species=spp, apply(estcounts[,-1], 2, round, 2))
+#write.csv(estcounts, 'output/sporangia_postmeans.csv', row.names = F)
 
 #plot 1
 #pdf('plots/sporangia/lam_ptrange.pdf', width=6, height=4)
 ggplot(estcounts, aes(species, plam)) +
-  geom_pointrange(aes(ymin=lo, ymax=hi), shape=22, fill='white') +
+  geom_pointrange(aes(ymin=lo5, ymax=hi95), shape=22, fill='white') +
   ylim(c(0,65)) +
   labs(y='90th PI mean counts (lambda)')
 #dev.off()
@@ -223,8 +224,6 @@ ggplot(prawtall, aes(lambda, speciesrev)) +
   labs(y='species')
 #dev.off()
 
-
-factor(prawtall$species, levels=rev(prawtall$species))
 ##########################################
 #RELATIONSHIP WITH LESION SIZE?
 
