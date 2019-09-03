@@ -6,6 +6,7 @@ library(lme4)
 library(reshape2)
 library(scales)
 library(ggridges)
+library(rethinking)
 
 #for turning pars back 
 reset <- function(x) par(mfrow=c(1,1))
@@ -79,20 +80,18 @@ curve( dlnorm( x, 0, 5) , from=0 , to=50 , n=200, xlab = "deviation around the m
 m4 <- ulam(
   alist(
     count ~ dpois(lambda), #likelihood
-    log(lambda) <- a[species] + b[leafID], 
+    log(lambda) <- a[species]+ b[leafID],
     #priors
-    a[species] ~ dnorm(3, 1.5), 
+    a[species] ~ dnorm(2, 1.5), 
     #adaptive priors
-    b[leafID] ~ dnorm(b_bar, sigma_b),
-    b_bar ~ dnorm(0, 2.2),
+    b[leafID] ~ dnorm(0, sigma_b),
     sigma_b ~ dexp(1)
   ), data=dat2, chains=3
 )
-#traceplot(m4) #the alphas dont look amazing
+traceplot(m4) #the alphas dont look amazing
 par(mfrow=c(1,1))
 stancode(m4)#check out stan code
-
-precis(m4, depth = 2, pars = c("a", "b_bar", "sigma_b")) %>% plot #it did not sample the species well at all! 
+precis(m4, depth = 2, pars=c('a', 'sigma_b')) #%>% plot
 
 #try to reparameterize it so it's non-centered? hopefully it'll sample better.
 #model it
@@ -101,23 +100,46 @@ m5 <- ulam(
     count ~ dpois(lambda), #likelihood
     log(lambda) <- a[species] + z[leafID]*sigma_b, 
     #priors
-    a[species] ~ dnorm(3, 1.5), #species intercepts
-    z[leafID] ~ dnorm(0, 1.5), #variation in subsamples
+    a[species] ~ dnorm(2, 1.5), #species intercepts
+    z[leafID] ~ dnorm(0, .5), #variation in subsamples
     sigma_b ~ dexp(1)
   ), data=dat2, chains=4, iter = 2000, cores = 4
 )
-spp <- unique(colnames(pred))
-precis(m5, depth=2) #sampling definitely better, but still low for some
-traceplot(m5)
-reset()
-precis(m5, depth = 2, pars=c('a')) %>% plot(labels=spp)
-postcheck(m5)#predicts really well
+spp <- as.vector(unique(dtall$species))
+precis(m4, depth = 2, pars=c('a', 'sigma_b'))
+precis(m5, depth=2, pars=c('a', 'sigma_b', 'z')) #sampling definitely better, but still low for some
+
+#compare both models. pretty comparable and m4 is more interpretable.
+CT <- coeftab(m4, m5) 
+CTc <- CT@coefs
+CTse <- CT@se
+colnames(CTse) <- colnames(CTc)
+CTd <-
+  left_join(
+    as.data.frame(CTc) %>%
+      mutate(param = row.names(CTc)) %>%
+      tidyr::gather(model, estimate, 1:ncol(CTc)),
+    as.data.frame(CTse) %>%
+      mutate(param = row.names(CTse)) %>%
+      tidyr::gather(model, se, 1:ncol(CTse))
+  )
+CTd %>% filter(grepl('a', param)) %>% 
+  ggplot(., aes(param, estimate, group=model, color=model)) +
+  #geom_col(position = "dodge") +
+  geom_errorbar(aes(ymin=estimate-se, ymax=estimate+se), position="dodge")
+
+#both predict really well
+postcheck(m5)
+postcheck(m4)
+
+#go with m4.
+precis(m4, depth = 2, pars=c('a', 'sigma_b')) %>% plot(labels=c(spp, "sigma_ind"))
 
 #check out how well the model fits the data. predict new data points from model and contrast with real data.
-pred <- sim(m5) #951 samples (cols) simulated 1500 times (rows)
+pred <- sim(m4) #951 samples (cols) simulated 1500 times (rows)
 #all of the samples
 dens(pred[1,], col=alpha('black', .1))
-lapply(1:100, function(x)dens(pred[x,], add = T, col=alpha('black', .05)))
+lapply(1:500, function(x)dens(pred[x,], add = T, col=alpha('black', .05)))
 dens(dtall$count, add = T, col='blue')#observed data
 
 #split among species
@@ -150,12 +172,13 @@ reset()
 
 #understand what the model is saying...
 #pdf('plots/sporangia/alpha_coef.pdf', width = 6, height = 4)
-precis(m5, depth = 2, pars = c("a")) %>% plot(labels=c(spp), xlab="species coef (log-sporangia)")
+precis(m4, depth = 2, pars = c("a")) %>% plot(labels=c(spp), xlab="species coef (log-sporangia)")
 #dev.off()
 ####################
 #contrasts between species intercept coefficients
 #ex$a %>% head #posterior of species effects
 pairs <- combn(1:10,2)
+ex <- extract.samples(m4)
 f <- function(x){
   spdiff <-  ex$a[,pairs[1,x]]-ex$a[,pairs[2,x]]
   PI(spdiff, .95)
@@ -174,20 +197,14 @@ diffsdf
 #compare to data. not sure why alpha is so different from observed data. maybe there's just a lot of intraindividual variation? 
 head(df2)
 summ <- df2 %>% group_by(species) %>% summarise(obsmean=mean(countm, na.rm=T))
-ex <- extract.samples(m5)
 am <- sapply(1:10, function(x) mean(exp(ex$a[,x]))) 
 api <- sapply(1:10, function(x) PI(exp(ex$a[,x]))) %>% t
 cbind(summ, am, api)
 ####################
 #get back transformed mean and sd values of counts
 #simulate data and get the means and sd???
-str(ex)#not sure how to do with m5 when it doesn't have mu and sigma for intra-ind variation ('beta')
-
-#gonna do it with m4
 #log(lambda) <- a[species] + b[leafID]
-ex2 <- extract.samples(m4)
-str(ex2)
-loglam <- with(ex2, (a + rnorm(nrow(a), b_bar, sigma_b)))
+loglam <- with(ex, (a + rnorm(nrow(a), 0, sigma_b)))
 praw <- exp(loglam)
 head(praw)
 plam <- apply(praw, 2, mean)
@@ -202,7 +219,7 @@ estcounts <- data.frame(species=spp, apply(estcounts[,-1], 2, round, 2))
 #pdf('plots/sporangia/lam_ptrange.pdf', width=6, height=4)
 ggplot(estcounts, aes(species, plam)) +
   geom_pointrange(aes(ymin=lo5, ymax=hi95), shape=22, fill='white') +
-  ylim(c(0,65)) +
+  ylim(c(0,75)) +
   labs(y='90th PI mean counts (lambda)')
 #dev.off()
 

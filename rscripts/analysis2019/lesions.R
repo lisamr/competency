@@ -9,6 +9,7 @@ library(lme4)
 library(reshape2)
 library(scales)
 library(ggridges)
+library(rethinking)
 
 #for turning pars back 
 reset <- function(x) par(mfrow=c(1,1))
@@ -49,6 +50,14 @@ plot(m0)
 plot(dtall2$count, predict(m0, type='response'))+abline(0,1)
 
 #how do you do counterfactual plots again with lmer obj??
+#unique(dtall2$species)
+#pd <- data.frame(perc_lesion=1:100, species=rep(unique(dtall2$species), each=100))
+#pm0 <-bootMer(m0, function(x) predict(m0, re.form=NA, newdata=pd, type='response'), nsim = 100)
+#str(pm0)
+#plot(pd$perc_lesion, pm0$t0)
+#for(i in 1:nrow(pm0$t)){
+#  lines(pd$perc_lesion, pm0$t[i,])}
+#plot(pm0$t[1,], type='l')
 
 ########################################
 #statistical models!
@@ -64,7 +73,7 @@ mean(a2)
 b <- rnorm(5000, 1, .5)
 sp <- seq(0,1, length.out = 100)
 lam <- sapply(1:length(sp), function(x) exp(a + b*sp[x]))
-plot(NULL, xlim=c(0,1), ylim=c(0,200), xlab="lesion", ylab="#spores")
+plot(NULL, xlim=c(0,1), ylim=c(0,500), xlab="lesion", ylab="#spores")
 lapply(1:200, function(x) lines(sp, lam[x,], col=alpha(1, .3)))
 
 #prior for rho, the correlation between int and slopes. should be centered around zero.
@@ -112,18 +121,89 @@ m2 <- ulam(
     count ~ dpois(lambda),
     log(lambda) <- a[species] + g[ID] + b[species]*lesion,
     #varying effects
-    g[ID] ~ dnorm(gbar, sigmag),#not multivariate cuz shouldnt vary with slope?
+    g[ID] ~ dnorm(0, sigmag)
     c(a, b)[species] ~ multi_normal(c(abar, bbar), rho, sigma),
     #fixed priors
-    gbar ~ dnorm(0, 2.2),
     sigmag ~ dexp(1),
     abar ~ dnorm(3, 1.5),
     bbar ~ dnorm(1, .5),
     rho ~ dlkjcorr(2),
     sigma ~ dexp(1)
   ), 
+  control=list(adapt_delta=0.99),
   data=dat2 , chains=4 , cores=4 )
 
-#uhhh, did not sample well at all. model must be wrong.
+#HUGE NOTE: MODEL WAS SAMPLING VERRRRY POORLY WHEN MU FOR G[ID] HAD A VALUE OTHER THAN ZERO. THIS IS BECAUSE THE MODEL HAD IDENTIFIABILITY ISSUES. SET IT TO ZERO!
 traceplot(m2) 
-precis(m2, pars = 'a', 'b') 
+postcheck(m2)
+reset()
+parsm2 <- m2@pars
+precis(m2, pars = parsm2[-1], depth = 3) %>% plot 
+
+####################################
+####################################
+#check out the model!
+#model predictions with observed data overlayed
+pred <- sim(m2)
+spnames <- unique(df2$species) %>% as.vector()
+dens(pred[1,], col=alpha('black', .1))
+lapply(1:500, function(x)dens(pred[x,], add = T, col=alpha('black', .05)))
+dens(dat2$count, add = T, col='blue')#observed data
+
+fplot1 <- function(i){
+  sp <- dat2$species==i
+  plot(dat2$lesion[sp], dat2$count[sp], main=spnames[i])
+}
+par(mfrow=c(2,5))
+lapply(1:10, fplot1)
+reset()
+
+#get posterior predictions
+ex <- extract.samples(m2)
+str(ex)
+#need to predict values with my own function using the structure of the model.
+# log(lambda) <- a[species] + g[ID] + b[species]*lesion,
+#g[ID] ~ dnorm(0, sigmag)
+#c(a, b)[species] ~ multi_normal(c(abar, bbar), rho, sigma),
+ex$a[,1] 
+str(ex)
+lesionseq <- seq(0,1,length.out = 1000)
+
+#function for predicting posterior
+fpost <- function(sp, link=T){
+  postraw <- matrix(NA, ncol=length(lesionseq), nrow = nrow(ex$a))
+  gbar <- mean(rnorm(nrow(ex$g), 0, ex$sigmag))
+  for(i in 1:length(lesionseq)){
+    lesion <- lesionseq[i]
+    mean(ex$g)
+    #"link" function. will not include intra-ind. variation
+    if(link==T){
+      postraw[,i] <- with(ex, (a[,sp] + gbar + b[,sp]*lesion)) %>% exp 
+      #"sim" function. includes intra-ind variation
+    }else{
+      postraw[,i] <- with(ex, (a[,sp] + rnorm(nrow(g), 0, sigmag) + b[,sp]*lesion)) %>% exp 
+    }
+  }
+  return(postraw)
+}
+
+#function for plotting posterior predictions against data
+fplot2 <- function(sp, ...){
+  #mean fit
+  postraw <- fpost(sp, link=T)
+  postm <- apply(postraw, 2, mean)
+  postPI <- apply(postraw, 2, PI)
+  spcol <- dat2$species==sp
+  plot(dat2$lesion[spcol], dat2$count[spcol], pch=16, col=alpha('black', .5), xlim=c(0,1), main=spnames[sp], ...)
+  lines(lesionseq, postm)
+  shade(postPI, lesionseq)
+  #predicted fit
+  postraw <- fpost(sp, link=F)
+  postm <- apply(postraw, 2, mean)
+  postPI <- apply(postraw, 2, PI)
+  lines(lesionseq, postm)
+  shade(postPI, lesionseq)
+}
+par(mfrow=c(2,5))
+lapply(1:10, fplot2)
+reset()
