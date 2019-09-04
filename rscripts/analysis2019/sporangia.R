@@ -71,6 +71,7 @@ dat2 <- list(
 
 #figure out prior for the species intercept
 curve( dlnorm( x, 3, 1.5) , from=0 , to=100 , n=200, xlab = "mean # spores (lambda)")
+exp(rnorm(1000, 3, 1.5)) %>% PI(.5)
 curve( dlnorm( x, 0, 5) , from=0 , to=50 , n=200, xlab = "deviation around the mean")
 #b <- exp(rnorm(5000, 0, 1.5))
 #mean(b)

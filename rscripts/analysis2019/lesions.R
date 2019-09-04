@@ -105,7 +105,8 @@ m1 <- ulam(
     ), 
   data=dat , chains=4 , cores=4 )
 traceplot(m1)
-precis(m1, depth = 3) #sampled well!
+dev.off()
+precis(m1, depth = 3) %>% plot #sampled well!
 
 ########################
 #put leafID back in?
@@ -121,7 +122,7 @@ m2 <- ulam(
     count ~ dpois(lambda),
     log(lambda) <- a[species] + g[ID] + b[species]*lesion,
     #varying effects
-    g[ID] ~ dnorm(0, sigmag)
+    g[ID] ~ dnorm(0, sigmag),
     c(a, b)[species] ~ multi_normal(c(abar, bbar), rho, sigma),
     #fixed priors
     sigmag ~ dexp(1),
@@ -135,6 +136,7 @@ m2 <- ulam(
 
 #HUGE NOTE: MODEL WAS SAMPLING VERRRRY POORLY WHEN MU FOR G[ID] HAD A VALUE OTHER THAN ZERO. THIS IS BECAUSE THE MODEL HAD IDENTIFIABILITY ISSUES. SET IT TO ZERO!
 traceplot(m2) 
+
 postcheck(m2)
 reset()
 parsm2 <- m2@pars
@@ -172,7 +174,8 @@ lesionseq <- seq(0,1,length.out = 1000)
 #function for predicting posterior
 fpost <- function(sp, link=T){
   postraw <- matrix(NA, ncol=length(lesionseq), nrow = nrow(ex$a))
-  gbar <- mean(rnorm(nrow(ex$g), 0, ex$sigmag))
+  gbar <- 0
+  #gbar <- mean(rnorm(nrow(ex$g), 0, ex$sigmag))
   for(i in 1:length(lesionseq)){
     lesion <- lesionseq[i]
     mean(ex$g)

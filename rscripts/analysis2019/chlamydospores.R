@@ -1,15 +1,61 @@
 #contrast chlamydospore counts, similar to what you did for sporangia. will have more zeros and might need to do a zeroinflated model?
 
-setwd("~/Box/Competency project/competency.git/data2019")
+#use m2.1, which is a poisson model with random intercept for observation. good fit with the data, not great out of sample predictions. just use for inference with your data?
+
+setwd("~/Box/Competency project/competency.git")
 rm(list = ls())#clear environment
 library(dplyr)
 library(ggplot2)
 library(lme4)
 library(reshape2)
 library(scales)
+library(rethinking)
+#for turning pars back 
+reset <- function(x) par(mfrow=c(1,1))
+options(scipen = 999) #turns off scientific notation
+
+##################################################
+#functions for plotting posterior preds
+
+#check out posterior predictions against observed.
+fdens <- function(s, sim, a=.2, ...){
+  cols <- dat$spID==s
+  dens(dat$count[cols], col=NA, main=spnames[s], ...)
+  for(i in 1:200){
+    dens(sim[i,cols], add=T, col=alpha('black', a))
+  }
+  dens(dat$count[cols], add=T, col='blue')
+}
+
+dpred <- data.frame(spID=1:6, prop=1)
+
+#check out model predictions
+fboxplot <- function(model, dat){
+  #check out model prediction vs observed
+  dpred <- data.frame(spID=1:6, prop=1)
+  #CI for the model fit
+  fit <- link(model, dpred)
+  fmean <- apply(fit, 2, mean)
+  fpi <- apply(fit, 2, PI, .95) %>% round(1) %>%  t %>% as.data.frame() %>% rename(mulow='3%', muhigh='98%')
+  #CI for predicted values
+  p <- sim(model, dpred)
+  ppi <- apply(p, 2, PI, .95) %>% round(1) %>%  t %>% as.data.frame() %>% rename(prlow='3%', prhigh='98%')
+  #put into df
+  pred <- data.frame(species=spnames, fmean, fpi, ppi)
+  #get observed df
+  c.est <- dat$count/dat$prop
+  obs <- data.frame(dat$spID, species=spnames[dat$spID], c.est)
+  #plot
+  ggplot(pred, aes(species, fmean))+
+    geom_boxplot(data=obs, aes(species, c.est))+
+    geom_point(alpha=.5) +
+    geom_errorbar(aes(ymin=mulow, ymax=muhigh), width=.1, color="red") +
+    geom_errorbar(aes(ymin=prlow, ymax=prhigh), width=.1, color="red") #+ scale_y_continuous(trans='log2')
+}
+########################################
 
 #read in master file
-df <- read.csv(file = 'master_tall.csv')
+df <- read.csv(file = 'data2019/master_tall.csv')
 #analyze just broad leaf assay
 df1 <- df %>% filter(leafID<=530) 
 
@@ -56,16 +102,27 @@ df2 %>%
 #need a poisson glm with sampling intensity included as offset 
 #might need a mixture model to deal with zero inflation (mostly from todi and lide)
 
-library(rethinking)
-
 head(df1)
 #create data for stan
 dat <- df1 %>% 
   filter(spore_assay=="C", trt=="T", !is.na(count1)) %>% 
-  mutate(logprop=log(prop), 
-         spID=as.integer(factor(species))) %>% 
-  select(spID, count=count1, logprop) %>% 
-  as.list()
+  mutate(spID=as.integer(factor(species))) %>% 
+  select(species, spID, count=count1, prop) %>% as.list()
+spnames <- as.vector(unique(dat$species))
+dat$species <- NULL
+
+#quick try with glm. need something more snazzy.
+datdf <- as.data.frame(dat)
+datdf$countest <- datdf$count/datdf$prop
+m0 <- glm(count ~ as.factor(spID) -1 + offset(log(prop)), data = datdf, family = poisson)
+summary(m0)
+plot(predict(m0, type='response'), datdf$countest)+abline(0,1)
+m0.1 <- glm(count ~ as.factor(spID) -1 + offset(log(prop)), data = datdf, family = quasipoisson)
+summary(m0.1)
+plot(predict(m0.1, type='response'), datdf$countest)+abline(0,1)
+m0.2 <- MASS::glm.nb(count ~ as.factor(spID) -1 + offset(log(prop)), data = datdf)
+summary(m0.2)
+plot(predict(m0.2, type='response'), datdf$countest)+abline(0,1)
 
 #figure out prior for the species intercept
 curve( dlnorm( x, 7, 1.5) , from=0 , to=5000 , n=200, xlab = "mean # spores (lambda)")
@@ -74,7 +131,7 @@ curve( dlnorm( x, 7, 1.5) , from=0 , to=5000 , n=200, xlab = "mean # spores (lam
 m1 <- ulam(
   alist(
     count ~ dpois(lambda), #likelihood
-    log(lambda) <- logprop + a[spID], 
+    log(lambda) <- log(prop) + a[spID], 
     #priors
     a[spID] ~ dnorm(7, 1.5)
   ), data=dat, chains=3
@@ -85,168 +142,164 @@ par(mfrow=c(1,1))
 stancode(m1)#check out stan code
 
 precis(m1, depth = 2) #it sampled very well
+postcheck(m1) #very poor fit. intervals way too small.
+dev.off()
 
-#check out model predictions
-fplot <- function(model, dat){
-  #check out model prediction vs observed
-  dpred <- data.frame(spID=1:6, logprop=0)
-  #CI for the model fit
-  fit <- link(model, dpred)
-  fmean <- apply(fit, 2, mean)
-  fpi <- apply(fit, 2, PI, .95) %>% round(1) %>%  t %>% as.data.frame() %>% rename(mulow='3%', muhigh='98%')
-  #CI for predicted values
-  p <- sim(model, dpred)
-  ppi <- apply(p, 2, PI, .95) %>% round(1) %>%  t %>% as.data.frame() %>% rename(prlow='3%', prhigh='98%')
-  #put into df
-  spp <- df1 %>% filter(spore_assay=="C", trt=="T", !is.na(count1)) %>% pull(species) %>% unique()
-  pred <- data.frame(species=spp, fmean, fpi, ppi)
-  #get observed df
-  c.est <- dat$count/(exp(dat$logprop))
-  obs <- data.frame(dat$spID, species=spp[dat$spID], c.est) 
-  
-  #plot
-  ggplot(pred, aes(species, fmean))+
-    geom_boxplot(data=obs, aes(species, c.est))+
-    geom_point(alpha=.5) +
-    geom_errorbar(aes(ymin=mulow, ymax=muhigh), width=.1, color="red") +
-    geom_errorbar(aes(ymin=prlow, ymax=prhigh), width=.1, color="red")
-}
+sim1 <- sim(m1)
+#pdf('plots/chlamydos/poisson_pred_dens.pdf', width = 8, height = 6)
+xmax <- c(.05, .1, .05, 4, .4, .2)
+par(mfrow=c(2,3))
+lapply(1:6, function(x) fdens(x, sim1, ylim=c(0, xmax[x])))
+reset()
+#dev.off()
 
-fplot(m1, dat)
-
-################################
-################################
-postcheck(m1)
-################################
-################################
-#predict using the same data frame? that way dont need to estimate counts.
-simm1 <- sim(m1)
-
-viz <- function(i, fit, data, ...){
-  dens(data$count[data$spID==i], main=paste("species",i), col="blue", ...)
-  fit <- fit[,data$spID==i]
-  sapply(1:200, function(x) dens(fit[x,], add=T, col=alpha("black", .05)))
-}
-#ugggghhh theyre so bad.
-lapply(1:6, function(x) viz(x, simm1, dat)) 
+fboxplot(m1, dat)
 
 ################################
 ################################
 #maybe negative binomial model???? adds phi as a dispersion par
 #model it
+dens(rexp(10000, .1), xlim=c(-1, 100)) #prior for phi
+
 m2 <- ulam(
   alist(
     count ~ dgampois(lambda, phi), #likelihood
-    log(lambda) <- logprop + a[spID], 
+    log(lambda) <- log(prop) + a[spID], 
     #priors
     a[spID] ~ dnorm(7, 1.5),
-    phi ~ dexp(1)
+    phi ~ dexp(.1)
   ), data=dat, chains=3
 )
-precis(m2, depth = 2)
+precis(m2, depth = 2) %>% plot
 postcheck(m2) #definitely better, but I think I need to do a zero-infl model
+dev.off()
 
 #check out model predictions
-simm2 <- sim(m2)
-lapply(1:6, function(x) viz(x, simm2, dat)) 
-
-
+#pdf('plots/chlamydos/nbinom_pred_dens.pdf', width = 8, height = 6)
+sim2 <- sim(m2)
+par(mfrow=c(2,3))
+lapply(1:6, function(x) fdens(x, sim2, ylim=c(0, xmax[x])))
+reset()
+#dev.off()
 
 #better than the poisson, but still needs work
-fplot(m1, dat)
-fplot(m2, dat)
-
-
-#making phi species specific. nope can't do it.
+fboxplot(m2, dat)
+#make phi species specific. nope can't do it.
 
 ################################
-################################
-#how about a zero-inflated negative binomial model???? lets start with zi-pois since there's already a helper function for that distribution. this better work.
+#poisson with random observation level variable?
+dat2 <- df1 %>% 
+  filter(spore_assay=="C", trt=="T", !is.na(count1)) %>% 
+  mutate(spID=as.integer(factor(species)), 
+         leafID=as.integer(factor(leafID))) %>% 
+  select(spID, count=count1, prop, leafID) %>% as.list()
 
-#does removing hear help? no, makes no diff. don't bother.
-#gonna remove HEAR becuase its screwing with the model. dont know how to keep it in.
-rm <- dat$spID==4
-dat2 <- lapply(1:3, function(x) dat[[x]][!rm])
-names(dat2) <- names(dat)
-dat2$spID <- as.integer(factor(dat2$spID))
-
-
-#check out priors. include the distribution and then backtransform it to see it on the outcome scale.
-p <- inv_logit(rnorm(1000, -1, 1.5))
-dens(p, xlim=c(0,1)) #prob of no chl present
-min(p);max(p)
-lam <- exp(rnorm(1000, 6, 1.5))
-dens(lam, xlim=c(0,5000)) #mean chl when infected
-mean(lam)
-min(lam);max(lam)
-
-#model it
-m3 <- ulam(
+m2.1 <- ulam(
   alist(
-    count ~ dzipois(p, lambda), #likelihood
-    logit(p) <- ap[spID], #probability of no chl produced
-    log(lambda) <- logprop + al[spID], #mean spores prod
+    count ~ dpois(lambda), #likelihood
+    log(lambda) <- log(prop) + a[spID] + b[leafID], 
     #priors
-    ap[spID] ~ dnorm(-1, 1.5),
-    al[spID] ~ dnorm(6, 1.5)
+    a[spID] ~ dnorm(7, 1.5),
+    b[leafID] ~ dnorm(0, sigmab),
+    sigmab ~ dexp(1)
   ), data=dat2, chains=3
 )
+precis(m2.1, pars = c('a', 'sigmab'),  depth=2)#really bad sampling
 
-precis(m3, depth = 2)
+#estimated species intercepts
+precis(m2.1, pars='a', depth = 2) %>% plot
 
-fplot2 <- function(model){
-  #check out model prediction vs observed
-  dpred <- data.frame(spID=1:5, logprop=0)
-  #CI for the model fit
-  fit <- link(model, dpred)
-  fmean <- apply(fit$lambda, 2, mean)
-  fpi <- apply(fit$lambda, 2, PI, .95) %>% round(1) %>%  t %>% as.data.frame() %>% rename(mulow='3%', muhigh='98%')
-  #CI for predicted values
-  p <- sim(model, dpred)
-  ppi <- apply(p, 2, PI, .95) %>% round(1) %>%  t %>% as.data.frame() %>% rename(prlow='3%', prhigh='98%')
-  #put into df
-  spp <- c("ACMA", "ARME", "CEOL", "LIDE", "TODI")
-  pred <- data.frame(species=spp, fmean, fpi, ppi)
-  #get observed df
-  c.est <- dat2$count/(exp(dat2$logprop))
-  obs <- data.frame(dat2$spID, species=spp[dat2$spID], c.est) 
-  
-  #plot
-  ggplot(pred, aes(species, fmean))+
-    geom_boxplot(data=obs, aes(species, c.est))+
-    geom_point(alpha=.5) +
-    geom_errorbar(aes(ymin=mulow, ymax=muhigh), width=.1, color="red") +
-    geom_errorbar(aes(ymin=prlow, ymax=prhigh), width=.1, color="red")
+#WAAAYYY better fit! just have to fix the sampling now.
+#pdf('plots/chlamydos/randobs_pois_pred_dens.pdf', width = 8, height = 6)
+sim2.1 <- sim(m2.1)
+par(mfrow=c(2,3))
+lapply(1:6, function(x) fdens(x, sim2.1,a = .05, ylim=c(0, xmax[x])))
+reset()
+#dev.off()
+
+#get posterior fit of lambda
+ex <- extract.samples(m2.1)
+
+#simulate posterior
+ll <- log(1) + ex$a + 0 #no obs random effect
+#ll <- log(1) + ex$a + rnorm(nrow(ex$a), 0, ex$sigmab)
+post <- exp(ll)
+postm <- apply(post, 2, mean)
+postpi <- apply(post, 2, PI,.95)
+obs <- dat %>% as.data.frame() %>% mutate(countest=count/prop) %>%  group_by(spID) %>% summarise(obsm=mean(countest))
+
+#pdf('plots/chlamydos/randobs_pois_postmean.pdf', width = 6, height = 4)
+postdf <- data.frame(spnames, spID=1:6, postm, t(postpi))
+names(postdf)[c(4,5)] <- c('lower', 'upper')
+ggplot(postdf, aes(spnames, postm))+
+  geom_point()+
+  geom_point(data=obs, aes(spID, obsm), color='blue') +
+  geom_errorbar(aes(ymin=lower, ymax=upper, width=.1)) +
+  scale_y_log10()
+#dev.off()
+#############################################
+#predictions with the same data are good but not out of sample. maybe make random obs coef interact with species?
+
+#there are real differences in the random obs coef depending on species.
+f <- function(i){
+  use <- dat$spID==i
+  list(mean(ex$b[,use]), sd(ex$b[,use]))
 }
+sapply(1:6, f)
 
 
-#check out model predictions
-fplot2(m3) #estimated counts
-simm3 <- sim(m3) #same data
-lapply(1:5, function(x) viz(x, simm3, dat2)) 
-spp
-par(mfrow=c(3, 6))
-viz(1, simm2, dat, xlim=c(0,500), ylim=c(0,.02))#acma
-viz(2, simm2, dat, xlim=c(0,100), ylim=c(0,.03))#arme
-viz(3, simm2, dat, xlim=c(0,650), ylim=c(0,.02))#ceol
-viz(4, simm2, dat, xlim=c(0,10), ylim=c(0,.1))#hear
-viz(5, simm2, dat, xlim=c(0,100), ylim=c(0,.1))#lide
-viz(6, simm2, dat, xlim=c(0,200), ylim=c(0,.1))#lide
-viz(1, simm1, dat, xlim=c(0,500), ylim=c(0,.02))#acma
-viz(2, simm1, dat, xlim=c(0,100), ylim=c(0,.03))#arme
-viz(3, simm1, dat, xlim=c(0,650), ylim=c(0,.02))#ceol
-viz(4, simm1, dat, xlim=c(0,10), ylim=c(0,.1))#hear
-viz(5, simm1, dat, xlim=c(0,100), ylim=c(0,.1))#lide
-viz(6, simm1, dat, xlim=c(0,200), ylim=c(0,.1))#lide
+#model
+rlkjcorr(10000,2, 2)[,2,1] %>% dens #rho prior
 
-viz(1, simm3, dat2, xlim=c(0,500), ylim=c(0,.02))#acma
-viz(2, simm3, dat2, xlim=c(0,100), ylim=c(0,.03))#arme
-viz(3, simm3, dat2, xlim=c(0,650), ylim=c(0,.02))#ceol
-viz(4, simm3, dat2, xlim=c(0,100), ylim=c(0,.1))#lide
-viz(4, simm3, dat2, xlim=c(0,100), ylim=c(0,.1))#lide
-viz(5, simm3, dat2, xlim=c(0,200), ylim=c(0,.1))#todi
+m3 <- ulam(
+  alist(
+    count ~ dpois(lambda), #likelihood
+    log(lambda) <- log(prop) + a[spID] + b[leafID,spID], 
+    #adaptive priors
+    vector[6]:b[leafID] ~ multi_normal(0,Rho,sigmab),
+    #fixed priors
+    a[spID] ~ dnorm(7, 1.5),
+    Rho ~ dlkjcorr(4),
+    sigmab ~ dexp(1)
+  ), data=dat2, chains=4, cores=4
+)
 
-################################
-################################
-#need to do a zi-negbinom model. ughhhggghghg.
+#Warning messages:
+#1: There were 13 transitions after warmup that exceeded the maximum treedepth. Increase max_treedepth above 10. See http://mc-stan.org/misc/warnings.html#maximum-treedepth-exceeded 
+#2: There were 4 chains where the estimated Bayesian Fraction of Missing Information was low. See http://mc-stan.org/misc/warnings.html#bfmi-low 
+#3: Examine the pairs() plot to diagnose sampling problems
 
+precis(m3, depth=2)
+precis(m3, pars=c('a', 'sigmab'), depth=3)
+
+#predictions similar to m2.1
+#pdf('plots/chlamydos/randobs_pois_pred_dens.pdf', width = 8, height = 6)
+sim3 <- sim(m3)
+par(mfrow=c(2,3))
+lapply(1:6, function(x) fdens(x, sim3,a = .05, ylim=c(0, xmax[x])))
+reset()
+#dev.off()
+
+#get posterior fit of lambda. acma, arme and hear are good but others suck.
+ex <- extract.samples(m3)
+str(ex)
+#simulate posterior
+fpost <- function(spID){
+  ll <- log(1) + ex$a[,spID] + rnorm(nrow(ex$a), 0, ex$sigmab[,spID])
+  exp(ll)
+}
+xmax2 <- c(10000, 1000, 1000, 100, 1000, 1000)
+par(mfrow=c(2,3))
+post <- sapply(1:6, function(x)fpost(x))
+#plot density of post
+lapply(1:6, function(x) dens(post[,x], xlim=c(0,xmax2[x])))
+#summary table of post
+postm <- apply(post, 2, mean)
+postpi <- apply(post, 2, PI)
+dat %>% as.data.frame() %>% mutate(countest=count/prop) %>%  group_by(spID) %>% summarise(mean(countest))
+
+postdf <- data.frame(spnames, spID=1:6, postm, t(postpi))
+names(postdf)[c(4,5)] <- c('lower', 'upper')
+ggplot(postdf, aes(spnames, postm))+
+  geom_point()+
+  geom_errorbar(aes(ymin=lower, ymax=upper, width=.1))
