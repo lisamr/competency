@@ -217,25 +217,20 @@ lapply(1:6, function(x) fdens(x, sim2.1,a = .05, ylim=c(0, xmax[x])))
 reset()
 #dev.off()
 
-#get posterior fit of lambda
+#simulate posterior with new samples. it's bad.
 ex <- extract.samples(m2.1)
-
-#simulate posterior
 ll <- log(1) + ex$a + 0 #no obs random effect
 #ll <- log(1) + ex$a + rnorm(nrow(ex$a), 0, ex$sigmab)
 post <- exp(ll)
 postm <- apply(post, 2, mean)
 postpi <- apply(post, 2, PI,.95)
-obs <- dat %>% as.data.frame() %>% mutate(countest=count/prop) %>%  group_by(spID) %>% summarise(obsm=mean(countest))
-
 #pdf('plots/chlamydos/randobs_pois_postmean.pdf', width = 6, height = 4)
 postdf <- data.frame(spnames, spID=1:6, postm, t(postpi))
 names(postdf)[c(4,5)] <- c('lower', 'upper')
 ggplot(postdf, aes(spnames, postm))+
   geom_point()+
   geom_point(data=obs, aes(spID, obsm), color='blue') +
-  geom_errorbar(aes(ymin=lower, ymax=upper, width=.1)) +
-  scale_y_log10()
+  geom_errorbar(aes(ymin=lower, ymax=upper, width=.1)) 
 #dev.off()
 #############################################
 #predictions with the same data are good but not out of sample. maybe make random obs coef interact with species?
@@ -303,3 +298,16 @@ names(postdf)[c(4,5)] <- c('lower', 'upper')
 ggplot(postdf, aes(spnames, postm))+
   geom_point()+
   geom_errorbar(aes(ymin=lower, ymax=upper, width=.1))
+
+
+####################################
+#check out shinystan
+library(shinystan)
+library(rstanarm)
+test <- stan(model_code=stancode(m2.1), data=dat2)
+launch_shinystan_demo()
+
+shinym2.1 <- launch_shinystan(test)
+ex2 <- extract(test)
+plot(test, pars='a', col='blue')
+extract(test, 'a') 
