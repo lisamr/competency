@@ -10,6 +10,8 @@ library(reshape2)
 library(scales)
 library(ggridges)
 library(rethinking)
+library(brms)
+library(brmstools)
 
 #for turning pars back 
 reset <- function(x) par(mfrow=c(1,1))
@@ -41,7 +43,7 @@ ggplot(df2, aes(lesion, countm))+
 
 
 ########################################
-#try it with glmer first
+#try it with glmer first to get an idea of what you want
 m0 <- glmer(count ~ perc_lesion + (1|leafID) + (perc_lesion|species), data = dtall2, family = 'poisson')
 summary(m0)
 
@@ -49,18 +51,104 @@ summary(m0)
 plot(m0)
 plot(dtall2$count, predict(m0, type='response'))+abline(0,1)
 
-#how do you do counterfactual plots again with lmer obj??
-#unique(dtall2$species)
-#pd <- data.frame(perc_lesion=1:100, species=rep(unique(dtall2$species), each=100))
-#pm0 <-bootMer(m0, function(x) predict(m0, re.form=NA, newdata=pd, type='response'), nsim = 100)
-#str(pm0)
-#plot(pd$perc_lesion, pm0$t0)
-#for(i in 1:nrow(pm0$t)){
-#  lines(pd$perc_lesion, pm0$t[i,])}
-#plot(pm0$t[1,], type='l')
+#random slopes for each species
+ranef(m0)$species #how do you get the variation across those values
+plot(ranef(m0)$species[,2], 1:10)
+#library(lattice)
+dotplot(ranef(m0, postVar = TRUE))#plots prediction intervals of the random slopes and intercepts
 
-########################################
+####################################
+#try to model it with brms
+
+m4 <- brm(
+  count ~ perc_lesion + (1|leafID) + (perc_lesion|species),
+  data = dtall2, family = poisson(),
+  chains = 3, cores = 4, iter=3000,
+  control = list(adapt_delta = .99, max_treedepth=15))
+#saveRDS(m4, 'output/lesion/brmsmodel_m4.rds')#save model for easy loading in future
+#stancode(m4) #see stancode!
+#Warning messages:
+#1: There were 3 divergent transitions after warmup. Increasing adapt_delta above 0.99 may help. See
+#http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup 
+#3: Examine the pairs() plot to diagnose sampling problems
+#plots pop-level effects only
+plot(m4, pars = "^b_")
+
+#see model summary and output
+sum4 <- summary(m4);sum4
+#check out random slopes. values are the entire coef, which includes fixed + rand effect.
+#warning 1: 'forest' is deprecated.Use 'tidybayes' instead.
+pdf('plots/lesions/forest.pdf',width = 6,4)
+forest(m4, pars='perc_lesion', grouping='species', level=.9, sort = F, digits = 1, av_name = 'mean slope')+
+  geom_vline(xintercept = 0, lty=2) +
+  geom_point(color='slateblue') 
+dev.off()
+#hmm...don't match up with reported ranef from brms. that's because ranef is the difference from the population level effect. they do match up if you do:
+#coef(m4)
+REm4 <- ranef(m4, probs = c(.05, .95))
+REm4$species[,,2]
+
+#check out model predictions
+#model fit
+pp1 <- predict(m4, summary = F)
+dens(dtall2$count, col='white')
+sapply(1:200, function(x) dens(pp1[x,], add=T, col=alpha('grey', .1)))
+dens(dtall2$count, col='blue', add=T)
+pp_check(m4) #easy function to do the same
+
+#predict model fit for each species
+xx <- seq(0,1,length.out = 100)
+newd <- data.frame(perc_lesion=xx, leafID=1, species=rep(unique(dtall2$species), each=length(xx)))
+pp2 <- predict(m4, newdata = newd, re_formula = ~(1|species), summary = F)
+pp3 <- fitted(m4, newdata = newd, scale = 'response', re_formula = ~(1|species), summary = F)#the fitted line, not predicted points
+dim(pp3)
+head(pp3)
+
+plotmodfit <- function(i, pp, ...){
+  sp <- as.vector(unique(newd$species))
+  use <- as.integer(factor(newd$species))==i
+  plot(dtall2$perc_lesion[dtall2$species==sp[i]], dtall2$count[dtall2$species==sp[i]], ...,
+       xlab='lesion', ylab='# sporangia', main=sp[i], 
+       pch=16, col=alpha('slateblue', .5), xlim=c(0,1))
+  apply(pp[,use], 2, median) %>% lines(xx, .)
+  apply(pp[,use], 2, PI, .9) %>% shade(., xx)
+}
+#wierd. looks like the same shitty predictions from rethinking package.
+pdf('plots/lesions/predictions_brms.pdf',8, 6)
+par(mfrow=c(2,5))
+sapply(1:10, function(x) plotmodfit(x, pp3))
+reset()
+dev.off()
+
+###
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########################
 #statistical models!
+#model with rethinking isn't producing what I think it should
 #figure out priors. modeling counts ~ species + lesion 
 
 #prior for intercept. mass should be under 20 or so, which is the maxish spores produced regardless of lesion area.
@@ -81,35 +169,6 @@ R <- rlkjcorr(5000, 2, 2) #array
 dens(R[,1,2], xlab='correlation')
 ###################################
 ###################################
-#model it?!? having issues. maybe make simpler by removing 3 subsamples (leafID) to troubleshoot and then add it back in?
-dtall3 <- dtall2 %>% filter(!duplicated(leafID))
-dat <- list(
-  count=dtall3$count,
-  species=as.integer(factor(dtall3$species)),
-  #ID=dtall3$leafID,
-  lesion=dtall3$perc_lesion)
-
-#no leafID
-m1 <- ulam(
-  alist(
-    #likelihood and linear model
-    count ~ dpois(lambda),
-    log(lambda) <- a[species] + b[species]*lesion,
-    #varying effects
-    c(a, b)[species] ~ multi_normal(c(abar, bbar), rho, sigma),
-    #fixed priors
-    abar ~ dnorm(3, 1.5),
-    bbar ~ dnorm(1, .5),
-    rho ~ dlkjcorr(2),
-    sigma ~ dexp(1)
-    ), 
-  data=dat , chains=4 , cores=4 )
-traceplot(m1)
-dev.off()
-precis(m1, depth = 3) %>% plot #sampled well!
-
-########################
-#put leafID back in?
 dat2 <- list(
   count=dtall2$count,
   species=as.integer(factor(dtall2$species)),
@@ -135,16 +194,17 @@ m2 <- ulam(
   data=dat2 , chains=4 , cores=4 )
 
 #HUGE NOTE: MODEL WAS SAMPLING VERRRRY POORLY WHEN MU FOR G[ID] HAD A VALUE OTHER THAN ZERO. THIS IS BECAUSE THE MODEL HAD IDENTIFIABILITY ISSUES. SET IT TO ZERO!
+#not sure why it's coming up with different estimates on the random slopes than the glmer model.
 traceplot(m2) 
 
 postcheck(m2)
 reset()
 parsm2 <- m2@pars
-precis(m2, pars = parsm2[-1], depth = 3) %>% plot 
-
+sp <- c('ACMA', 'ARME', 'CEOL', 'HEAR', 'LIDE', 'QUAG', 'QUCH', 'QUPA', 'TODI', 'UMCA')
+parnames <- c(paste0("b_", sp), paste0("a_", sp), "sigmag", "abar",   "bbar",   rep("rho", 4), rep("sigma", 2))
+precis(m2, pars = parsm2[-1], depth = 3) %>% plot(labels=parnames)
 ####################################
-####################################
-#check out the model!
+#check out the rethinking model!
 #model predictions with observed data overlayed
 pred <- sim(m2)
 spnames <- unique(df2$species) %>% as.vector()
@@ -210,3 +270,7 @@ fplot2 <- function(sp, ...){
 par(mfrow=c(2,5))
 lapply(1:10, fplot2)
 reset()
+
+########################
+#try it another way.
+

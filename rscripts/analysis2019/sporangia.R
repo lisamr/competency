@@ -52,7 +52,9 @@ dtall <- melt(df2, id.vars = c("species", "leafID", "leafID2"), measure.vars = c
 
 #I get convergence issues and I forget how to read these model outputs
 #m1 <- glmer(count ~ species + (1|leafID), data = dtall, family = "poisson")
-#summary(m1)
+#m1.1 <- glmer(count ~ 1 + (1|leafID), data = dtall, family = "poisson")
+#summary(m1.1)
+#anova(m1, m1.1)
 #m2 <- glmer.nb(count ~ species + (1|leafID), data = dtall)
 #summary(m2)
 
@@ -87,12 +89,42 @@ m4 <- ulam(
     #adaptive priors
     b[leafID] ~ dnorm(0, sigma_b),
     sigma_b ~ dexp(1)
-  ), data=dat2, chains=3
+  ), data=dat2, chains=4, log_lik = T
 )
 traceplot(m4) #the alphas dont look amazing
 par(mfrow=c(1,1))
 stancode(m4)#check out stan code
-precis(m4, depth = 2, pars=c('a', 'sigma_b')) #%>% plot
+ptablem4 <-  precis(m4, depth = 2, pars=c('a', 'sigma_b'), prob = .9) #%>% plot
+parnames <- c('ACMA', 'ARME', 'CEOL', 'HEAR', 'LIDE', 'QUAG', 'QUCH', 'QUPA', 'TODI', 'UMCA', 'sigma_leafID')
+plot(ptablem4, labels=parnames, pch=16)
+#write.csv(round(ptablem4, 2), 'output/sporangia/precis_m4.csv')
+
+#contrast it with intercept only model. isn't that different actually.
+dat2.1 <- dat2
+dat2.1$species <- NULL
+m4.1 <- ulam(
+  alist(
+    count ~ dpois(lambda), #likelihood
+    log(lambda) <- a + b[leafID],
+    #priors
+    b[leafID] ~ dnorm(0, sigma_b),
+    a ~ dnorm(2, 1.5),
+    sigma_b ~ dexp(1)
+  ), data=dat2, chains=4, log_lik = T
+)
+precis(m4.1)
+traceplot_ulam(m4.1, pars = 'a')#looks fine
+dev.off()
+#compare with WAIC
+waic_comp <- compare(m4.1, m4)
+waic_comp
+dwaic <- rnorm(10000, 12.3, 9.43)
+dens(dwaic, show.zero = T,show.HPDI = .95)
+#compare with LOO
+loo_comp <- compare(m4.1, m4, func = LOO)
+loo_comp
+dloo <- rnorm(10000, 21.8, 10.56)
+dens(dloo, show.zero = T,show.HPDI = .95)
 
 #try to reparameterize it so it's non-centered? hopefully it'll sample better.
 #model it
