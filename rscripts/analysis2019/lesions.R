@@ -15,6 +15,14 @@ library(brmstools)
 
 #for turning pars back 
 reset <- function(x) par(mfrow=c(1,1))
+#unscaling scaled vectors
+unscale <- function(y, x){
+  #extract scale variables from scaled vector
+  sc <- attr(x, 'scaled:scale')
+  cen <- attr(x, 'scaled:center')
+  #backtransform vector using scale values
+  y*sc + cen
+}
 
 #read in master file
 df <- read.csv(file = 'data2019/master_tall.csv')
@@ -59,6 +67,7 @@ dotplot(ranef(m0, postVar = TRUE))#plots prediction intervals of the random slop
 
 ####################################
 #try to model it with brms
+dtall2$perc_lesion_sc <- scale(dtall2$perc_lesion)
 
 m4 <- brm(
   count ~ perc_lesion + (1|leafID) + (perc_lesion|species),
@@ -74,15 +83,30 @@ m4 <- brm(
 #plots pop-level effects only
 plot(m4, pars = "^b_")
 
+#does scaling help??
+m4.1 <- brm(
+  count ~ perc_lesion_sc + (1|leafID) + (perc_lesion_sc|species),
+  data = dtall2, family = poisson(),
+  chains = 3, cores = 4, iter=3000,
+  control = list(adapt_delta = .99, max_treedepth=15))
+#no warnings :)
+coef(m4.1)
+fixef(m4.1)
+summary(m4.1)
+
 #see model summary and output
 sum4 <- summary(m4);sum4
 #check out random slopes. values are the entire coef, which includes fixed + rand effect.
 #warning 1: 'forest' is deprecated.Use 'tidybayes' instead.
-pdf('plots/lesions/forest.pdf',width = 6,4)
+#pdf('plots/lesions/forest_scaledmod.pdf',width = 6,4)
 forest(m4, pars='perc_lesion', grouping='species', level=.9, sort = F, digits = 1, av_name = 'mean slope')+
   geom_vline(xintercept = 0, lty=2) +
   geom_point(color='slateblue') 
-dev.off()
+forest(m4.1, pars=c('perc_lesion_sc'), grouping='species', level=.9, sort = F, digits = 1, av_name = 'mean slope')+
+  geom_vline(xintercept = 0, lty=2) +
+  geom_point(color='slateblue') 
+#dev.off()
+
 #hmm...don't match up with reported ranef from brms. that's because ranef is the difference from the population level effect. they do match up if you do:
 #coef(m4)
 REm4 <- ranef(m4, probs = c(.05, .95))
@@ -95,14 +119,19 @@ dens(dtall2$count, col='white')
 sapply(1:200, function(x) dens(pp1[x,], add=T, col=alpha('grey', .1)))
 dens(dtall2$count, col='blue', add=T)
 pp_check(m4) #easy function to do the same
+pp_check(m4.1)
 
 #predict model fit for each species
 xx <- seq(0,1,length.out = 100)
 newd <- data.frame(perc_lesion=xx, leafID=1, species=rep(unique(dtall2$species), each=length(xx)))
 pp2 <- predict(m4, newdata = newd, re_formula = ~(1|species), summary = F)
 pp3 <- fitted(m4, newdata = newd, scale = 'response', re_formula = ~(1|species), summary = F)#the fitted line, not predicted points
-dim(pp3)
-head(pp3)
+
+#use scaled model?
+newd2 <- newd
+newd2$perc_lesion_sc <- scale(newd2$perc_lesion)
+pp4s <- fitted(m4.1, newdata = newd2, scale = 'response', re_formula = ~(1|species), summary = F)#scaled predictions
+pp4 <- unscale(pp4s, newd2$perc_lesion_sc) #unscaled predictions
 
 plotmodfit <- function(i, pp, ...){
   sp <- as.vector(unique(newd$species))
@@ -114,11 +143,11 @@ plotmodfit <- function(i, pp, ...){
   apply(pp[,use], 2, PI, .9) %>% shade(., xx)
 }
 #wierd. looks like the same shitty predictions from rethinking package.
-pdf('plots/lesions/predictions_brms.pdf',8, 6)
+#pdf('plots/lesions/predictions_brmsscaled.pdf',8, 6)
 par(mfrow=c(2,5))
-sapply(1:10, function(x) plotmodfit(x, pp3))
+sapply(1:10, function(x) plotmodfit(x, pp4))
 reset()
-dev.off()
+#dev.off()
 
 ###
 

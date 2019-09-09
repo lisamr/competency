@@ -1,5 +1,6 @@
 setwd("~/Box/Competency project/competency.git")
 rm(list = ls())#clear environment
+library(tidyverse) #do I not need all the other packages below?
 library(dplyr)
 library(ggplot2)
 library(lme4)
@@ -7,9 +8,13 @@ library(reshape2)
 library(scales)
 library(ggridges)
 library(rethinking)
+library(forcats)
+library(tidybayes)
+library(modelr)
 
 #for turning pars back 
 reset <- function(x) par(mfrow=c(1,1))
+theme_set(theme_bw()) #set ggplot theme
 
 #read in master file
 df <- read.csv(file = 'data2019/master_tall.csv')
@@ -49,6 +54,7 @@ df2 <- filter(df1, spore_assay=="S", trt=="T")
 dtall <- melt(df2, id.vars = c("species", "leafID", "leafID2"), measure.vars = c("count1", "count2", "count3"), variable.name = "sample", value.name = "count") %>% 
   filter(!is.na(count)) %>% 
   arrange(leafID) 
+dtall$species <- droplevels(dtall$species)
 
 #I get convergence issues and I forget how to read these model outputs
 #m1 <- glmer(count ~ species + (1|leafID), data = dtall, family = "poisson")
@@ -58,6 +64,98 @@ dtall <- melt(df2, id.vars = c("species", "leafID", "leafID2"), measure.vars = c
 #m2 <- glmer.nb(count ~ species + (1|leafID), data = dtall)
 #summary(m2)
 
+########################################
+#try with brms first before rethinking
+m3 <- brm(
+  count ~ -1 + species + (1|leafID),
+  data = dtall, family = poisson(),
+  chains = 4, cores = 4,
+  control = list(adapt_delta = .99, max_treedepth=15))
+#no warnings :)
+
+#check out coefs
+summary(m3)
+fixef(m3)
+launch_shinystan(m3)
+#population level effects only. traceplots look ok
+plot(m3, pars = "^b_")
+postm3 <- posterior_samples(m3, pars = c("^b_", "sd"))
+head(postm3)
+pp_check(m3)
+
+#check out posterior with tidybayes
+get_variables(m3) #b_ are fixed, r_ are rand
+get_variables(m3)[1:11]
+#would be nice to know how to include a vector of params, but dont know how atm.
+
+#see model fit
+#simulate prediction data using same dataset to see fit
+m3sim <- add_predicted_draws(dtall, m3) %>% 
+  select(-.chain, -.iteration) %>% 
+  group_by(species, .draw) %>% 
+  sample_draws(30) 
+#plot against your own data
+#pdf('plots/sporangia/modelfit_brms.pdf')
+m3sim %>% ggplot() +
+  geom_density(aes(x=.prediction, group=.draw),lwd=.1, alpha=.5, color='grey')+
+  stat_density(data=dtall, aes(x=count), geom="line", color='slateblue')+
+  facet_wrap(~species, scales = 'free')
+#dev.off()  
+
+#coef plot
+#pdf('plots/sporangia/coefplot_brms.pdf')
+m3 %>% 
+  gather_draws(b_speciesACMA, b_speciesARME, b_speciesCEOL, b_speciesHEAR, b_speciesLIDE, b_speciesQUAG, b_speciesQUCH, b_speciesQUPA, b_speciesTODI, b_speciesUMCA, sd_leafID__Intercept) %>%
+  rename(par=.variable, value=.value) %>% 
+  ggplot(aes(y = fct_rev(par), x = value)) +
+  geom_halfeyeh(.width = .9, size=.5) +
+  geom_vline(xintercept=0, lty=2, color='grey50') +
+  labs(y='coefficient')
+#dev.off()
+
+#summarize coefs
+m3 %>% 
+  gather_draws(b_speciesACMA, b_speciesARME, b_speciesCEOL, b_speciesHEAR, b_speciesLIDE, b_speciesQUAG, b_speciesQUCH, b_speciesQUPA, b_speciesTODI, b_speciesUMCA, sd_leafID__Intercept) %>%
+  median_qi(.width=.9)
+
+#contrasts between species
+#extract posterior of following coefficients
+ex <- m3 %>% 
+  spread_draws(b_speciesACMA, b_speciesARME, b_speciesCEOL, b_speciesHEAR, b_speciesLIDE, b_speciesQUAG, b_speciesQUCH, b_speciesQUPA, b_speciesTODI, b_speciesUMCA) %>% 
+  select(-c(.chain, .iteration, .draw)) %>% as.data.frame()
+head(ex)
+
+#can't figure out how to do it the tidy way, so doing it kinda clunky
+
+pairs <- combn(1:10,2)
+f <- function(x){
+  spdiff <-  (ex[,pairs[1,x]]-ex[,pairs[2,x]])
+  PI(spdiff, .9)
+}
+diffs <- sapply(1:ncol(pairs), f)
+#put contrasts into a readable dataframe
+spp <- colnames(ex) %>% str_replace('b_species', '')
+diffsdf <- rbind(pairs, diffs) %>% t %>% as.data.frame
+diffsdf <- diffsdf %>% 
+  mutate(sp1=spp[diffsdf[,1]],
+         sp2=spp[diffsdf[,2]],
+         sig=sign(diffsdf[,3])==sign(diffsdf[,4]))
+diffsdf
+
+
+  
+#get predicted fit based on just the species coef.
+#pdf('plots/sporangia/predictions_brms.pdf')
+dtall %>%
+  data_grid(species) %>%
+  add_fitted_draws(m3, re_formula = ~0, scale = 'response') %>%
+  ggplot(aes(y = fct_rev(species), x = .value)) +
+  geom_density_ridges(lwd=.1)+
+  stat_pointintervalh(.width = c(.9), size=.2)+
+  labs(x='# sporangia', y='Species')
+#dev.off()
+
+  
 ########################################
 #BAYESIAN STATS?
 #goal: create a model with a poisson likelihood and leafID as random intercept

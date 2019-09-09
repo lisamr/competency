@@ -1,0 +1,18 @@
+> #summarize coefs
+> m3 %>% 
++   gather_draws(b_speciesACMA, b_speciesARME, b_speciesCEOL, b_speciesHEAR, b_speciesLIDE, b_speciesQUAG, b_speciesQUCH, b_speciesQUPA, b_speciesTODI, b_speciesUMCA, sd_leafID__Intercept) %>%
++   median_qi(.width=.9)
+# A tibble: 11 x 7
+   .variable        .value .lower .upper .width .point .interval
+   <chr>             <dbl>  <dbl>  <dbl>  <dbl> <chr>  <chr>    
+ 1 b_speciesACMA    0.270  -0.122  0.640    0.9 median qi       
+ 2 b_speciesARME   -1.37   -1.85  -0.904    0.9 median qi       
+ 3 b_speciesCEOL   -0.569  -0.977 -0.173    0.9 median qi       
+ 4 b_speciesHEAR   -0.724  -1.15  -0.304    0.9 median qi       
+ 5 b_speciesLIDE    1.84    1.48   2.20     0.9 median qi       
+ 6 b_speciesQUAG   -0.245  -0.644  0.135    0.9 median qi       
+ 7 b_speciesQUCH    0.213  -0.182  0.610    0.9 median qi       
+ 8 b_speciesQUPA    0.264  -0.118  0.635    0.9 median qi       
+ 9 b_speciesTODI    0.0343 -0.366  0.426    0.9 median qi       
+10 b_speciesUMCA    2.28    1.91   2.62     0.9 median qi       
+11 sd_leafID__Int…  1.18    1.07   1.29     0.9 median qi    
