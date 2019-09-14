@@ -142,8 +142,6 @@ diffsdf <- diffsdf %>%
          sig=sign(diffsdf[,3])==sign(diffsdf[,4]))
 diffsdf
 
-
-  
 #get predicted fit based on just the species coef.
 #pdf('plots/sporangia/predictions_brms.pdf')
 dtall %>%
@@ -155,9 +153,23 @@ dtall %>%
   labs(x='# sporangia', y='Species')
 #dev.off()
 
-  
+dtall %>%
+  data_grid(species) %>%
+  add_fitted_draws(m3, re_formula = ~0, scale = 'response') %>% 
+  median_qi(.width = c(.9, .95))
+
+#backtransformed count values with observed (5 ul samples) and estimated spores per cm2
+results <- dtall %>%
+  data_grid(species) %>%
+  add_fitted_draws(m3, re_formula = ~0, scale = 'response', value = "count") %>% 
+  #compute spor/cm2: vol/leaf-area
+  mutate(count_std=count*102.5/1.227) %>% 
+  median_qi(.width=c(.9, .95), ) %>% 
+  mutate_if(is.numeric, round, 2) #round numeric cols
+ 
+write.csv(results, 'output/sporangia/backtransformed_results_brms.csv', row.names = F)
 ########################################
-#BAYESIAN STATS?
+#use rethinking package?
 #goal: create a model with a poisson likelihood and leafID as random intercept
 library(rethinking)
 

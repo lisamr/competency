@@ -42,7 +42,11 @@ df1 %>% group_by(species) %>% summarise(ubiq=mean(mixed), count=mean(count)) %>%
   geom_smooth(method='lm')
 
 #quick plot
-ggplot(df1, aes(mixed, log(count))) +
+ggplot(df1, aes(mixed, (count))) +
+  geom_point()+
+  geom_smooth(formula = y~x, method = 'glm')
+df1 %>% group_by(species, leafID, mixed) %>% summarise(count=mean(count)) %>% 
+  ggplot(., aes(mixed, count))+
   geom_point()+
   geom_smooth(formula = y~x, method = 'glm')
 
@@ -83,7 +87,80 @@ ggplot(df1, aes(mixed, count)) +
   #scale_y_continuous(trans = 'log2')
 
 ################################################
-#model it in stan.
+#model it in stan with brms
+#intercept only
+#mbrm0 <- brm(count ~ 1 + (1|species) + (1|leafID),data = df1, family = poisson(),chains = 3, cores = 4, control = list(adapt_delta = .95, max_treedepth=15))
+#n.plots (mixed) included in model
+mbrm <- brm(
+  count ~ mixed + (1|species) + (1|leafID),
+  data = df1, family = poisson(),
+  chains = 3, cores = 4,
+  control = list(adapt_delta = .95, max_treedepth=15))
+
+#Warning message:
+#  Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable. Running the chains for more iterations may help. See http://mc-stan.org/misc/warnings.html#bulk-ess 
+#see model summary and coefs. kinda just care about 'mixed'
+summary(mbrm)
+launch_shinystan(mbrm)
+
+#coefficient plot
+parnames(mbrm)
+mbrm %>% 
+  gather_draws(b_Intercept, b_mixed, sd_leafID__Intercept, sd_species__Intercept) %>%
+  rename(par=.variable, value=.value) %>% 
+  ggplot(aes(y = fct_rev(par), x = value)) +
+  geom_halfeyeh(.width = .9, size=.5) +
+  geom_vline(xintercept=0, lty=2, color='grey50') +
+  labs(y='coefficient')
+mbrm %>% 
+  gather_draws( b_mixed) %>%
+  rename(par=.variable, value=.value) %>% 
+  ggplot(aes(y = fct_rev(par), x = value)) +
+  geom_halfeyeh(.width = .9, size=.5) +
+  geom_vline(xintercept=0, lty=2, color='grey50') +
+  labs(y='coefficient')
+mbrm %>% 
+  gather_draws(b_Intercept, b_mixed, sd_leafID__Intercept, sd_species__Intercept) %>%
+  median_qi(.width=c(.9, .95))
+
+#compare models
+#mbrm0 <- add_criterion(mbrm0, c("loo", "waic", 'kfold'))
+#mbrm <- add_criterion(mbrm, c("loo", "waic", 'kfold'))
+#loo_compare(mbrm, mbrm0, criterion = 'kfold')
+
+#check out model fit
+brmsim <- add_predicted_draws(df1, mbrm) %>% 
+  select(-.chain, -.iteration) %>% 
+  group_by(species, .draw) %>% 
+  sample_draws(30) 
+brmsim %>% ggplot() +
+  geom_density(aes(x=.prediction, group=.draw),lwd=.1, alpha=.5, color='grey')+
+  stat_density(data=df1, aes(x=count), geom="line", color='slateblue')+
+  facet_wrap(~species, scales = 'free')
+
+#see model prediction
+#plot spores in relation to # plots, not? accounting for random variation
+#get posterior predictions
+xx <- seq(0,120,length.out = 121)
+newd <- data.frame(mixed=xx, leafID=1, species="UMCA")
+pp1 <- fitted(mbrm, newdata = newd, scale = 'response', re_formula = ~0, summary = F)#the fitted line, not predicted point
+pp1m <- apply(pp1, 2, mean)
+pp1pi <- apply(pp1, 2, PI, .9)
+
+#plot it!
+#plot points averaged within ind
+#d <- df1 %>% group_by(species, leafID, mixed) %>% summarise(count=mean(count)) 
+#plot(d$mixed, d$count, col=alpha('slateblue', .2), pch=16, ylim=c(0,85))
+#or plot raw data
+pdf('plots/ubiquity_sporangia_brms.pdf')
+plot(df1$mixed, df1$count, col=alpha('slateblue', .2), pch=16, 
+     ylim=c(0,85), xlab='# plots (mixed)', ylab='#sporangia')
+lines(xx, pp1m, col=alpha('slateblue4', .9))
+shade(pp1pi, xx, col=alpha('slateblue4', .1))
+dev.off()  
+
+################################################
+#model it in stan with rethinking.
 head(df1)
 dat <- list(spID = as.integer(factor(df1$species)),
             leafID = as.integer(factor(df1$leafID)),

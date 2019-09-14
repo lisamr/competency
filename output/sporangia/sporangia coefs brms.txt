@@ -16,3 +16,35 @@
  9 b_speciesTODI    0.0343 -0.366  0.426    0.9 median qi       
 10 b_speciesUMCA    2.28    1.91   2.62     0.9 median qi       
 11 sd_leafID__Int…  1.18    1.07   1.29     0.9 median qi    
+
+#backtransformed species ints
+> dtall %>%
++   data_grid(species) %>%
++   add_fitted_draws(m3, re_formula = ~0, scale = 'response') %>% 
++   median_qi(.width = c(.9, .95))
+# A tibble: 20 x 8
+# Groups:   species [10]
+   species  .row .value .lower .upper .width .point .interval
+   <fct>   <int>  <dbl>  <dbl>  <dbl>  <dbl> <chr>  <chr>    
+ 1 ACMA        1  1.24   0.846  1.83    0.9  median qi       
+ 2 ARME        2  0.256  0.154  0.408   0.9  median qi       
+ 3 CEOL        3  0.571  0.373  0.868   0.9  median qi       
+ 4 HEAR        4  0.481  0.318  0.741   0.9  median qi       
+ 5 LIDE        5  6.11   4.33   8.61    0.9  median qi       
+ 6 QUAG        6  0.781  0.517  1.14    0.9  median qi       
+ 7 QUCH        7  1.24   0.821  1.81    0.9  median qi       
+ 8 QUPA        8  1.30   0.899  1.90    0.9  median qi       
+ 9 TODI        9  1.05   0.716  1.50    0.9  median qi       
+10 UMCA       10  9.57   6.54  13.8     0.9  median qi    
+   
+11 ACMA        1  1.24   0.774  1.98    0.95 median qi       
+12 ARME        2  0.256  0.140  0.447   0.95 median qi       
+13 CEOL        3  0.571  0.345  0.932   0.95 median qi       
+14 HEAR        4  0.481  0.294  0.803   0.95 median qi       
+15 LIDE        5  6.11   4.07   9.15    0.95 median qi       
+16 QUAG        6  0.781  0.474  1.22    0.95 median qi       
+17 QUCH        7  1.24   0.755  1.95    0.95 median qi       
+18 QUPA        8  1.30   0.821  2.05    0.95 median qi       
+19 TODI        9  1.05   0.660  1.62    0.95 median qi       
+20 UMCA       10  9.57   6.09  14.6     0.95 median qi       
+> 
