@@ -143,30 +143,22 @@ diffsdf <- diffsdf %>%
 diffsdf
 
 #get predicted fit based on just the species coef.
+postp <- dtall %>%
+  modelr::data_grid(species) %>%
+  add_fitted_draws(m3, re_formula=~0, scale='response') %>%
+  #standardized sp/cm2
+  mutate(.valueSTD = .value*102.5/1.227) 
+
 #pdf('plots/sporangia/predictions_brms.pdf')
-dtall %>%
-  data_grid(species) %>%
-  add_fitted_draws(m3, re_formula = ~0, scale = 'response') %>%
-  ggplot(aes(y = fct_rev(species), x = .value)) +
+ggplot(postp, aes(y = fct_rev(species), x = .valueSTD)) +
   geom_density_ridges(lwd=.1)+
-  stat_pointintervalh(.width = c(.9), size=.2)+
+  stat_pointintervalh(point_interval = median_hdcih, .width = c(.9), size=.2)+
   labs(x='# sporangia', y='Species')
 #dev.off()
+#get the values
+postp %>% 
+  median_qi(x=.valueSTD, .width = c(.9, .95))
 
-dtall %>%
-  data_grid(species) %>%
-  add_fitted_draws(m3, re_formula = ~0, scale = 'response') %>% 
-  median_qi(.width = c(.9, .95))
-
-#backtransformed count values with observed (5 ul samples) and estimated spores per cm2
-results <- dtall %>%
-  data_grid(species) %>%
-  add_fitted_draws(m3, re_formula = ~0, scale = 'response', value = "count") %>% 
-  #compute spor/cm2: vol/leaf-area
-  mutate(count_std=count*102.5/1.227) %>% 
-  median_qi(.width=c(.9, .95), ) %>% 
-  mutate_if(is.numeric, round, 2) #round numeric cols
- 
 write.csv(results, 'output/sporangia/backtransformed_results_brms.csv', row.names = F)
 ########################################
 #use rethinking package?
