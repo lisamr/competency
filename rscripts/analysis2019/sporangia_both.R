@@ -171,7 +171,7 @@ ggplot(post, aes(y = fct_rev(species), x = .valueSTD)) +
   facet_grid(rows = vars(fct_rev(assay)), scales='free_y', space = 'free_y') + 
   scale_x_continuous(limits=c(-25, 1250), breaks = seq(0,1250, 250))
 #dev.off()
- 
+
 #get the summarized values
 postmb <- post_mb %>% 
   median_hdci(x=.valueSTD, .width = c(.9, .95)) %>% 

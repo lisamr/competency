@@ -1,0 +1,6 @@
+species,term,slope,.lower,.upper,.width,.point,.interval
+LIDED,lesion,5.1,0.181,10.4,0.9,median,hdci
+PIPO,lesion,0.69,-5.79,6.98,0.9,median,hdci
+PSME,lesion,0.706,-1.9,3.04,0.9,median,hdci
+SESE,lesion,-0.193,-2.01,1.71,0.9,median,hdci
+UMCAD,lesion,1.55,-0.399,3.66,0.9,median,hdci

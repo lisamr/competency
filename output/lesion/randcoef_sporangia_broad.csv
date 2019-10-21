@@ -1,0 +1,11 @@
+species,term,slope,.lower,.upper,.width,.point,.interval
+ACMA,lesion,0.912,0.0024,1.97,0.9,median,hdci
+ARME,lesion,0.155,-1.09,1.28,0.9,median,hdci
+CEOL,lesion,0.205,-0.704,1.08,0.9,median,hdci
+HEAR,lesion,0.351,-0.79,1.31,0.9,median,hdci
+LIDE,lesion,1.64,-0.181,4.3,0.9,median,hdci
+QUAG,lesion,0.964,-0.203,2.24,0.9,median,hdci
+QUCH,lesion,1.62,0.0344,3.98,0.9,median,hdci
+QUPA,lesion,0.662,-0.403,1.7,0.9,median,hdci
+TODI,lesion,1.24,0.268,2.26,0.9,median,hdci
+UMCA,lesion,1.43,0.0223,3.39,0.9,median,hdci

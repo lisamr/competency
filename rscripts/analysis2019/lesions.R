@@ -11,18 +11,10 @@ library(scales)
 library(ggridges)
 library(rethinking)
 library(brms)
-library(brmstools)
+library(tidybayes)
 
 #for turning pars back 
 reset <- function(x) par(mfrow=c(1,1))
-#unscaling scaled vectors
-unscale <- function(y, x){
-  #extract scale variables from scaled vector
-  sc <- attr(x, 'scaled:scale')
-  cen <- attr(x, 'scaled:center')
-  #backtransform vector using scale values
-  y*sc + cen
-}
 
 #read in master file
 df <- read.csv(file = 'data2019/master_tall.csv')
@@ -67,71 +59,61 @@ dotplot(ranef(m0, postVar = TRUE))#plots prediction intervals of the random slop
 
 ####################################
 #try to model it with brms
-dtall2$perc_lesion_sc <- scale(dtall2$perc_lesion)
+#set prior first
+f1 <- bf(count ~ perc_lesion + (1|leafID) + (perc_lesion|species), family = poisson())
+get_prior(f1, dtall2)
+prior1 <- c(
+  set_prior("normal(2, 1.5)", class="Intercept"),
+  set_prior("normal(0, .5)", class="b"),
+  set_prior("exponential(1)", class = "sd") )
 
-m4 <- brm(
-  count ~ perc_lesion + (1|leafID) + (perc_lesion|species),
-  data = dtall2, family = poisson(),
+m1 <- brm(
+  f1, prior=prior1, data = dtall2, family = poisson(),
   chains = 3, cores = 4, iter=3000,
-  control = list(adapt_delta = .99, max_treedepth=15))
-#saveRDS(m4, 'output/lesion/brmsmodel_m4.rds')#save model for easy loading in future
+  control = list(adapt_delta = .95, max_treedepth=15))
 #stancode(m4) #see stancode!
 #Warning messages:
-#1: There were 3 divergent transitions after warmup. Increasing adapt_delta above 0.99 may help. See
-#http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup 
-#3: Examine the pairs() plot to diagnose sampling problems
-#plots pop-level effects only
-plot(m4, pars = "^b_")
+#There were 7 divergent transitions after warmup. Increasing adapt_delta above 0.95 may help. See http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup 
+#2: Examine the pairs() plot to diagnose sampling problems
+#3: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
+plot(m1, pars = "^b_")
 
-#does scaling help??
-m4.1 <- brm(
-  count ~ perc_lesion_sc + (1|leafID) + (perc_lesion_sc|species),
-  data = dtall2, family = poisson(),
-  chains = 3, cores = 4, iter=3000,
-  control = list(adapt_delta = .99, max_treedepth=15))
-#no warnings :)
-coef(m4.1)
-fixef(m4.1)
-summary(m4.1)
+#check out model
+summary(m1) #close. intercept is off a bit.
+parnames(m1)
+#population level effects only. traceplots look good in both models.
+plot(m1, pars = "^b_")
 
-#see model summary and output
-sum4 <- summary(m4);sum4
-#check out random slopes. values are the entire coef, which includes fixed + rand effect.
-#warning 1: 'forest' is deprecated.Use 'tidybayes' instead.
-#pdf('plots/lesions/forest_scaledmod.pdf',width = 6,4)
-forest(m4, pars='perc_lesion', grouping='species', level=.9, sort = F, digits = 1, av_name = 'mean slope')+
-  geom_vline(xintercept = 0, lty=2) +
-  geom_point(color='slateblue') 
-forest(m4.1, pars=c('perc_lesion_sc'), grouping='species', level=.9, sort = F, digits = 1, av_name = 'mean slope')+
-  geom_vline(xintercept = 0, lty=2) +
-  geom_point(color='slateblue') 
+#simulate prediction data using same dataset to see fit
+sims<- add_predicted_draws(dtall2, m1) %>% 
+  group_by(species, .draw) %>% 
+  sample_draws(50) 
+sims %>% ggplot() +
+  geom_density(aes(x=.prediction, group=.draw),lwd=.1, alpha=.2, color='grey')+
+  stat_density(data=dtall2, aes(x=count), geom="line", color='steelblue') +
+  facet_wrap(~species, scales = 'free')
+
+#coef plot
+coefs <- m1 %>% 
+  gather_draws(r_species[species,lesion]) %>%
+  rename(par=.variable, value=.value)
+#point estimates for the random slopes
+rand_slopes <- coef(m1)$species[,,2]
+rand_slopes[,1]
+
+#plots
+#pdf('plots/lesions/coefs_brms.pdf',8, 6)
+coefs %>% 
+  ggplot(aes(y = interaction(par, species), x = value)) +
+  geom_halfeyeh(.width = .9, size=.5) +
+  geom_vline(xintercept=0, lty=2, color='grey50') +
+  labs(y='coefficient') 
 #dev.off()
-
-#hmm...don't match up with reported ranef from brms. that's because ranef is the difference from the population level effect. they do match up if you do:
-#coef(m4)
-REm4 <- ranef(m4, probs = c(.05, .95))
-REm4$species[,,2]
-
-#check out model predictions
-#model fit
-pp1 <- predict(m4, summary = F)
-dens(dtall2$count, col='white')
-sapply(1:200, function(x) dens(pp1[x,], add=T, col=alpha('grey', .1)))
-dens(dtall2$count, col='blue', add=T)
-pp_check(m4) #easy function to do the same
-pp_check(m4.1)
 
 #predict model fit for each species
 xx <- seq(0,1,length.out = 100)
 newd <- data.frame(perc_lesion=xx, leafID=1, species=rep(unique(dtall2$species), each=length(xx)))
-pp2 <- predict(m4, newdata = newd, re_formula = ~(1|species), summary = F)
-pp3 <- fitted(m4, newdata = newd, scale = 'response', re_formula = ~(1|species), summary = F)#the fitted line, not predicted points
-
-#use scaled model?
-newd2 <- newd
-newd2$perc_lesion_sc <- scale(newd2$perc_lesion)
-pp4s <- fitted(m4.1, newdata = newd2, scale = 'response', re_formula = ~(1|species), summary = F)#scaled predictions
-pp4 <- unscale(pp4s, newd2$perc_lesion_sc) #unscaled predictions
+pp1 <- fitted(m1, newdata = newd, re_formula = ~(perc_lesion|species), summary = F, scale = 'response')
 
 plotmodfit <- function(i, pp, ...){
   sp <- as.vector(unique(newd$species))
@@ -142,10 +124,10 @@ plotmodfit <- function(i, pp, ...){
   apply(pp[,use], 2, median) %>% lines(xx, .)
   apply(pp[,use], 2, PI, .9) %>% shade(., xx)
 }
-#wierd. looks like the same shitty predictions from rethinking package.
-#pdf('plots/lesions/predictions_brmsscaled.pdf',8, 6)
+#looks like it worked.
+#pdf('plots/lesions/predictions_brms.pdf',8, 6)
 par(mfrow=c(2,5))
-sapply(1:10, function(x) plotmodfit(x, pp4))
+sapply(1:10, function(x) plotmodfit(x, pp1))
 reset()
 #dev.off()
 
