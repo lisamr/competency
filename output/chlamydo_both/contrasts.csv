@@ -1,0 +1,12 @@
+contrast,.value,.lower,.upper,.width,.point,.interval,signif
+ACMA - ARME,4.38,3.45,5.29,0.9,median,hdci,TRUE
+ACMA - CEOL,0.91,-0.01,1.83,0.9,median,hdci,FALSE
+ACMA - LIDE,8.89,7.81,10.05,0.9,median,hdci,TRUE
+ACMA - TODI,6.42,5.46,7.44,0.9,median,hdci,TRUE
+ARME - CEOL,-3.47,-4.46,-2.57,0.9,median,hdci,TRUE
+ARME - LIDE,4.52,3.32,5.57,0.9,median,hdci,TRUE
+ARME - TODI,2.02,1,3.03,0.9,median,hdci,TRUE
+CEOL - LIDE,7.99,6.87,9.09,0.9,median,hdci,TRUE
+CEOL - TODI,5.52,4.57,6.53,0.9,median,hdci,TRUE
+LIDE - TODI,-2.46,-3.65,-1.31,0.9,median,hdci,TRUE
+LIDED - PSME,-1.24,-3.87,1.16,0.9,median,hdci,FALSE

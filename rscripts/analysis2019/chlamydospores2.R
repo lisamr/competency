@@ -20,10 +20,14 @@ theme_set(theme_bw())
 #read in master file
 df <- read.csv(file = 'data2019/master_tall.csv')
 #analyze just broad leaf chl. treatment assay
-df1 <- df %>% filter(leafID<=530, trt=='T', spore_assay=="C", !is.na(count1)) %>% select(-count2, -count3) %>% rename(count=count1)
+df1 <- df %>% 
+  filter(leafID<=530, trt=='T', spore_assay=="C", !is.na(count1)) %>% 
+  select(-count2, -count3) %>% 
+  rename(count=count1) %>% 
+  mutate(area_samp=prop*leaf_area_cm2)
 
 #plot data (estimated counts due to offsets)
-df1 %>% mutate(count_est=count/prop) %>% 
+df1 %>% mutate(count_est=count/area_samp) %>% 
   ggplot( aes(species, log(count_est)))+
   geom_boxplot()+
   geom_point(alpha=.4)
@@ -32,10 +36,21 @@ df1 %>% mutate(count_est=count/prop) %>%
 #remove hear because it seems to be causing problems and we know it's zero.
 df2 <- filter(df1, !species=="HEAR")
 df2$species <- droplevels(df2$species)
-m1 <- brm(
-  count ~ -1 + species + (1|leafID) + offset(log(prop)),
+
+#check out default priors
+f1 <- bf(count ~ -1 + species + (1|leafID) + offset(log(area_samp)), family = poisson())
+get_prior(f1, df2)
+
+#set your own
+rnorm(1000, 2, 3.5) %>% dens
+prior1 <- c(
+  set_prior("normal(2, 3.5)", class = "b"), #species int 
+  set_prior("exponential(1)", class = "sd")) #all the variations
+
+#run model
+m1 <- brm(formula = f1,
   data = df2, family = poisson(),
-  chains = 3, cores = 4, iter = 4000,
+  chains = 4, cores = 4, iter = 4000,
   control = list(adapt_delta = .95, max_treedepth=15))
 #no warnings :)
 
@@ -52,7 +67,7 @@ pp_check(m1)
 #see model fit. seems pretty good.
 #simulate prediction data using same dataset to see fit
 m1sim <- df2 %>% 
-  select(species, leafID, count, prop) %>% 
+  select(species, leafID, count, area_samp) %>% 
   add_predicted_draws(m1) %>% 
   select(-.chain, -.iteration) %>% 
   group_by(species, .draw) %>% 
@@ -89,12 +104,12 @@ obsm <- df2 %>% group_by(species) %>%
   summarise(counte=median(count/prop))
 obs <- df2 %>% mutate(counte=count/prop)
 head(obs)
-ggplot()+
-  geom_density_ridges(obs, aes(counte, species), jittered_points = TRUE,position = position_points_jitter(width = 0.05, height = 0), fill=NA, color=NA, point_color='slateblue', point_shape = '|', point_size = 3, point_alpha = .3, alpha = 0.7) #+ scale_x_log10()
+ggplot(obs, aes(counte, species))+
+  geom_density_ridges( jittered_points = TRUE,position = position_points_jitter(width = 0.05, height = 0), fill=NA, color=NA, point_color='slateblue', point_shape = '|', point_size = 3, point_alpha = .3, alpha = 0.7) #+ scale_x_log10()
 
 #predicted means
 pr <- df2 %>%
-  data_grid(species) %>% mutate(prop=1)%>%
+  data_grid(species) %>% mutate(area_samp=1)%>%
   add_fitted_draws(m1, re_formula = ~0, scale = 'response') 
 pr %>% median_qi(.width=c(.9, .95))
 #plot1, just predicted wiht median obs
@@ -103,7 +118,7 @@ ggplot(pr, aes(y = fct_rev(species), x = .value)) +
   geom_density_ridges(lwd=0, color=NA)+
   stat_pointintervalh(.width = c(.9), size=.2)+
   geom_point(data=obsm, aes(counte, species), fill='slateblue', color='slateblue', shape=24) +
-  labs(x='# chlamydospores', y='Species')+
+  labs(x=expression(paste("Mean chlamydospores/", cm^{2})), y='Species')+
   scale_x_log10()
 #dev.off()
 

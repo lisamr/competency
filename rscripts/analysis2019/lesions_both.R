@@ -30,7 +30,7 @@ df %>% filter(spore_assay=="S") %>%
   geom_point(aes(color=log(countm), alpha=.3))+
   scale_color_viridis_c()+
   facet_grid(~trt)
-  
+   
 #analyze just trt, sporangia
 df1 <- df %>% 
   filter(trt=="T", spore_assay=="S") 

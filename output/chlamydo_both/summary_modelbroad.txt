@@ -1,0 +1,31 @@
+ Family: poisson 
+  Links: mu = log 
+Formula: count ~ -1 + species + (1 | leafID) + offset(log(area_samp)) 
+   Data: df3b (Number of observations: 159) 
+Samples: 4 chains, each with iter = 4000; warmup = 2000; thin = 1;
+         total post-warmup samples = 8000
+
+Group-Level Effects: 
+~leafID (Number of levels: 159) 
+              Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS
+sd(Intercept)     2.28      0.18     1.96     2.65 1.00     1249
+              Tail_ESS
+sd(Intercept)     2478
+
+Population-Level Effects: 
+            Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS
+speciesACMA     7.15      0.40     6.37     7.91 1.00      742
+speciesARME     2.77      0.41     1.95     3.55 1.00      982
+speciesCEOL     6.26      0.39     5.49     7.02 1.01      693
+speciesLIDE    -1.74      0.57    -2.89    -0.64 1.00     2260
+speciesTODI     0.73      0.46    -0.22     1.61 1.00     1766
+            Tail_ESS
+speciesACMA     1092
+speciesARME     1445
+speciesCEOL     1415
+speciesLIDE     3357
+speciesTODI     2803
+
+Samples were drawn using sampling(NUTS). For each parameter, Eff.Sample 
+is a crude measure of effective sample size, and Rhat is the potential 
+scale reduction factor on split chains (at convergence, Rhat = 1).
