@@ -11,7 +11,7 @@ library(tidybayes)
 library(brms)
 library(ggthemes)
 
-source("rscripts/analysis2019/sporangia_lesion_plotfuncs.R")#load plotting functions for these models
+source("rscripts/analysis2019/lesion_plotfuncs.R")#load plotting functions for these models
 reset <- function(x) par(mfrow=c(1,1))#turns pars back 
 theme_set(theme_light(base_size = 12)) #set ggplot theme
 

@@ -4,7 +4,7 @@ rm(list=ls()) #clean env
 #params
 abar <- 1.5 # average spore intercept
 bbar <- .1 # average lesion slope
-sigma_a <- 1 # std dev in intercepts
+sigma_a <- .15 # std dev in intercepts
 sigma_b <- 0.5 # std dev in slopes
 rho <- .6 # correlation between intercepts and slopes
 
@@ -20,8 +20,8 @@ library(MASS)
 set.seed(5) # used to replicate example
 N_species <- 10
 vary_effects <- mvrnorm( N_species , Mu , Sigma )
-a <- vary_effects[,1]
-b <- vary_effects[,2]
+a <- vary_effects[,1] #species specific int
+b <- vary_effects[,2] #species specific slopes
 
 #simulate observations
 set.seed(22) 
@@ -30,7 +30,7 @@ sp_ID <- rep( 1:N_species , each=N_ind )
 lesion <- rbeta(length(sp_ID), 1,5) #random lesion size bounded between 0 and 1
 lambda <- a[sp_ID] + b[sp_ID]*lesion
 spores <- rpois(length(sp_ID), exp(lambda))#generate response
-d <- data.frame( species=sp_ID , lesion=lesion , count=spores )
+d <- data.frame( species=sp_ID , lesion=lesion , count=spores)
 head(d)
 
 #plot data
@@ -69,14 +69,15 @@ sims %>% ggplot() +
 
 #coef plot
 coefs <- m1 %>% 
-  gather_draws(r_species[species,lesion]) %>%
-  rename(par=.variable, value=.value)
+  spread_draws(b_lesion, r_species[species,lesion]) %>%
+  mutate(slope=r_species + b_lesion) %>%
+  rename(par=lesion, value=slope)
 #point estimates for the random slopes
 rand_slopes <- coef(m1)$species[,,2]
 rand_slopes[,1]
 
 #plots
-coefs %>% 
+coefs %>% filter(par=='lesion') %>% 
   ggplot(aes(y = interaction(par, species), x = value)) +
   geom_halfeyeh(.width = .9, size=.5) +
   geom_vline(xintercept=0, lty=2, color='grey50') +

@@ -15,7 +15,8 @@ library(eemeans)
 #for turning pars back 
 reset <- function(x) par(mfrow=c(1,1))
 options(scipen = 999) #turns off scientific notation
-theme_set(theme_bw())
+theme_set(theme_light(base_size = 12)) #set ggplot theme
+
 
 #for easy reporting predicted values with ci and sd
 median_hdi_sd <- function(data, value=.value, width=.9){
@@ -171,7 +172,7 @@ prm3c <- df3c %>%
   add_fitted_draws(m3c, re_formula = ~0, scale = 'response') %>% 
   mutate(assay='detached leaf')
 pr <- bind_rows(prm3b, prm3c)
-#pr <- pr %>% ungroup() %>% add_row(species="HEAR", .value=0.001, assay="leaf disc") %>% add_row(species="HEAR", .value=0.001, assay="leaf disc") %>% add_row(species="PIPO", .value=0.001, assay="detached leaf") %>%  add_row(species="PIPO", .value=0.001, assay="detached leaf")
+#pr <- pr %>% ungroup() %>% add_row(species="HEAR", .value=0.009, assay="leaf disc") %>% add_row(species="HEAR", .value=0.009, assay="leaf disc") %>% add_row(species="PIPO", .value=0.009, assay="detached leaf") %>%  add_row(species="PIPO", .value=0.009, assay="detached leaf")
 prm3b %>% 
   median_hdi_sd(.value) %>% 
   mutate_if(is.numeric, round, 2) %>% 
@@ -191,13 +192,15 @@ ggplot(pr, aes(y = fct_rev(species), x = .value)) +
   scale_x_log10()+
   geom_point(data=obs, aes(counte, species), fill='slateblue', color='slateblue', shape=24, alpha=.2) 
 
-pdf('plots/chlamydos_both/predicted_2panels.pdf', 6, 4)
+pdf('plots/chlamydos_both/predicted_2panels_HEARPIPO.pdf', 3.25, 2.75)
 ggplot(pr, aes(y = fct_rev(species), x = .value)) +
-  #geom_density_ridges(lwd=0, color=NA)+
-  stat_pointintervalh(point_interval = median_hdi, .width = c(.9),shape=21, size=3, fill='white')+
+  geom_density_ridges(lwd=0, color=NA, panel_scaling = F)+
+  stat_pointintervalh(point_interval = median_hdi, .width = c(.9),shape=21, size=.1, fill='white')+
   labs(x=expression(paste("Mean chlamydospores/", cm^{2})), y='Species')+
-  scale_x_log10()+
-  facet_grid(rows = vars(fct_rev(assay)), scales='free_y', space = 'free_y')
+  #scale_x_log10()+
+  scale_x_log10(limits=c(.009, 5000), breaks=c(.1, 1, 10, 100, 1000))+
+  facet_grid(rows = vars(fct_rev(assay)), scales='free_y', space = 'free_y') +
+  theme(text = element_text(size=8), panel.grid = element_blank())
 dev.off()
 
 #do pairwise contrasts

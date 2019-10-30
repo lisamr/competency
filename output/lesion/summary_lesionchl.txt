@@ -1,0 +1,52 @@
+ Family: zero_inflated_negbinomial 
+  Links: mu = log; shape = identity; zi = logit 
+Formula: count ~ broad + lesion + (lesion | species) + offset(log(area_samp)) 
+         zi ~ species
+   Data: df1 (Number of observations: 199) 
+Samples: 4 chains, each with iter = 2000; warmup = 1000; thin = 1;
+         total post-warmup samples = 4000
+
+Group-Level Effects: 
+~species (Number of levels: 7) 
+                      Estimate Est.Error l-90% CI u-90% CI Rhat
+sd(Intercept)             2.04      0.60     1.25     3.17 1.00
+sd(lesion)                1.97      1.05     0.31     3.75 1.00
+cor(Intercept,lesion)    -0.34      0.39    -0.85     0.42 1.00
+                      Bulk_ESS Tail_ESS
+sd(Intercept)             2132     2603
+sd(lesion)                 959     1012
+cor(Intercept,lesion)     2264     2134
+
+Population-Level Effects: 
+                Estimate Est.Error l-90% CI u-90% CI Rhat
+Intercept           3.22      0.89     1.79     4.66 1.00
+zi_Intercept       -1.23      0.25    -1.65    -0.82 1.00
+broad               0.15      0.48    -0.64     0.95 1.00
+lesion              2.09      0.98     0.48     3.69 1.00
+zi_speciesARME     -0.44      0.36    -1.03     0.15 1.00
+zi_speciesCEOL     -0.87      0.39    -1.52    -0.25 1.00
+zi_speciesLIDE      1.45      0.34     0.87     2.01 1.00
+zi_speciesLIDED     0.04      0.48    -0.77     0.82 1.00
+zi_speciesPSME      0.98      0.35     0.41     1.54 1.00
+zi_speciesTODI      0.68      0.45    -0.10     1.37 1.00
+                Bulk_ESS Tail_ESS
+Intercept           2513     2754
+zi_Intercept        5537     3135
+broad               6672     2910
+lesion              2913     2671
+zi_speciesARME      6960     3015
+zi_speciesCEOL      7544     2983
+zi_speciesLIDE      6531     2514
+zi_speciesLIDED     6376     2886
+zi_speciesPSME      6310     2621
+zi_speciesTODI      3093     2754
+
+Family Specific Parameters: 
+      Estimate Est.Error l-90% CI u-90% CI Rhat Bulk_ESS
+shape     0.88      0.13     0.68     1.11 1.00     4676
+      Tail_ESS
+shape     2909
+
+Samples were drawn using sampling(NUTS). For each parameter, Eff.Sample 
+is a crude measure of effective sample size, and Rhat is the potential 
+scale reduction factor on split chains (at convergence, Rhat = 1).
