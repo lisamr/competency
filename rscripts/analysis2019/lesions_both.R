@@ -1,23 +1,101 @@
 #sporangia analysis for both assays--broadleaf and conifers. pull the posteriors from the two models, standardize the units and plot the results together.
-
 setwd("~/Box/Competency project/competency.git")
 rm(list = ls())#clear environment
-library(tidyverse) #includes dplyr, ggplot, forcats
-library(reshape2)
-library(scales)
-library(ggridges)
-library(rethinking)
+library(dplyr)
+library(ggplot2)
 library(tidybayes)
+library(modelr)
 library(brms)
-library(ggthemes)
+library(ggridges)
+library(ggstance)
+library(forcats)
 
-source("rscripts/analysis2019/lesion_plotfuncs.R")#load plotting functions for these models
-reset <- function(x) par(mfrow=c(1,1))#turns pars back 
-theme_set(theme_light(base_size = 12)) #set ggplot theme
+#set ggplot theme
+theme_set(theme_bw(base_size = 9) + theme(panel.grid=element_blank()))
+#functions
+inv_logit <- function(x) 1 / (1 + exp(-x))
+logit <- function(x) log(x/(1-x))
+median_hdi_sd <- function(data, value=.value, width=.9){
+  value <- enquo(value)
+  data %>% 
+    summarise(estimate=median(!!value), 
+              lower=hdci(!!value, width)[1], 
+              upper=hdci(!!value, width)[2],
+              sd=sd(!!value),
+              width=.9)
+}
+#plotting functions
+psims <- function(data, model) {
+  #sample from posterior
+  sims<- add_predicted_draws(data, model) %>% 
+    group_by(species, .draw) %>% 
+    sample_draws(30) 
+  #plot draws against data
+  sims %>% ggplot() +
+    geom_density(aes(x=.prediction, group=.draw),lwd=.1, alpha=.2, color='grey')+
+    stat_density(data=data, aes(x=count), geom="line", color='steelblue') +
+    facet_wrap(~species, scales = 'free')
+}
+#coef plot
+pcoef <- function(model){
+  #coef plot
+  coefs <- model %>% 
+    spread_draws(b_lesion, r_species[species,term]) %>%
+    mutate(slope=r_species + b_lesion) %>% 
+    filter(term=="lesion")
+  coeftable <- coefs %>% median_hdci(slope, .width = .9) 
+  #plot
+  PLOT <- coefs %>% 
+    ggplot(aes(y = fct_rev(species), x = slope)) +
+    geom_halfeyeh(.width = .9, size=.5, point_interval = median_hdcih) +
+    geom_point(data = coeftable, aes(slope, species), color='steelblue', size=2) +
+    geom_vline(xintercept=0, lty=2, color='grey50') +
+    labs(y='coefficient') 
+  return(list(coeftable, PLOT))
+}
+#posterior predictions
+fpred <- function(data, model){
+  #get post pred
+  draws <- data %>%
+    group_by(species) %>%
+    data_grid(
+      lesion = seq(0,1.23,length.out = 100),
+      area_samp=1) %>%
+    mutate(broad=ifelse(species %in% c('PSME', 'LIDED', 'SESE', 'PIPO', 'UMCAD'), 0, 1)) %>% 
+    add_fitted_draws(model, n = 100, re_formula = ~(lesion|species)) 
+  #plot
+  ggplot(draws, aes(x = lesion,y = .value)) +
+    geom_line(aes(group = paste(species, .draw)), alpha = .1)+
+    facet_wrap(~species, scales = 'free_y')+
+    geom_point(data = data, aes(lesion, countm), 
+               color='steelblue', alpha=.4) +
+    labs(x=expression(paste("Lesion area (", cm^{2}, ")")),
+         y="Number of sporangia")
+}
+#############################################
+#############################################
+#source("rscripts/analysis2019/lesion_plotfuncs.R")#load plotting functions for these models
 
 #read in master file
 df <- read.csv(file = 'data2019/master_tall.csv')
+#analyze just trt, sporangia
+df1 <- df %>% 
+  filter(trt=="T", spore_assay=="S") 
+#start with averages
+df1<- df1 %>% rowwise() %>% mutate(countm=mean(c(count1, count2, count3), na.rm = T) ) #rowwise "groups" each row so each mean calucation is unique by row
 
+#make data tall in regards to counts
+dtall <- reshape2::melt(df1, id.vars = c("species", "leafID", "lesion_area_cm2", 'countm'), measure.vars = c("count1", "count2", "count3"), variable.name = "sample", value.name = "count") %>%
+  filter(!is.na(count), !is.na(lesion_area_cm2)) %>%
+  rename(lesion=lesion_area_cm2) %>% 
+  arrange(leafID) %>% 
+  mutate(broad = ifelse(leafID>530, 0, 1),
+         counte = countm*102.5)
+
+#read final model
+m1 <- readRDS('output/models/spor_lesion_m1.rds')
+
+#viz sporangia data
 #check out lesion area and contrast with the controls
 df %>% filter(spore_assay=="S") %>% 
   group_by(species, trt) %>% 
@@ -30,14 +108,6 @@ df %>% filter(spore_assay=="S") %>%
   geom_point(aes(color=log(countm), alpha=.3))+
   scale_color_viridis_c()+
   facet_grid(~trt)
-   
-#analyze just trt, sporangia
-df1 <- df %>% 
-  filter(trt=="T", spore_assay=="S") 
-
-#viz sporangia data
-#start with averages
-df1<- df1 %>% rowwise() %>% mutate(countm=mean(c(count1, count2, count3), na.rm = T) ) #rowwise "groups" each row so each mean calucation is unique by row
 
 #plot it. 
 #raw counts
@@ -73,15 +143,110 @@ df1 %>% filter(perc_lesion<1) %>%
 #2. model together with a fixed effect for assay
 #3. don't bother with the fixed effect
 
-#trying option 1 for now.
-#make data tall in regards to counts
-dtall2 <- melt(df1, id.vars = c("species", "leafID", "lesion_area_cm2"), measure.vars = c("count1", "count2", "count3"), variable.name = "sample", value.name = "count") %>% 
-  filter(!is.na(count), !is.na(lesion_area_cm2)) %>%
-  rename(lesion=lesion_area_cm2) %>% 
-  arrange(leafID) 
-#separate by assay
-dtallb <- dtall2 %>% filter(leafID<=530) %>% droplevels()
-dtallc <- dtall2 %>% filter(leafID>530) %>% droplevels()
+#going with option 2
+f1 <- bf(count ~ lesion + broad + (1|leafID) + (lesion|species), family = poisson())
+get_prior(f1, dtall)
+prior1 <- c(
+  set_prior("normal(1.5, 1.5)", class="Intercept"),
+  set_prior("normal(0, 20)", class = "b", coef = 'lesion'),
+  set_prior("normal(0, .5)", class = "b", coef = 'broad'),
+  set_prior("exponential(1)", class = "sd") )
+
+#models
+m1 <- brm(
+  f1, data = dtall, family = poisson(), prior = prior1,
+  chains = 4, cores = 4, iter=3000,
+  control = list(adapt_delta = .99, max_treedepth=15))
+
+#check out model
+summary(m1)
+psims(dtall, m1)+scale_x_continuous(limits=c(0,500))
+pp_check(m1, type = "intervals_grouped", group = "species")#pretty bad fit for some species
+pcoef(m1)#looks similar to the zinb
+
+#prediction plot. have to manually change the y scale limits
+draws <- dtall %>%
+  group_by(species) %>%
+  data_grid(
+    lesion = seq(0,1.3,length.out = 100)) %>%
+  mutate(broad=ifelse(species %in% c('PSME', 'LIDED', 'SESE', 'PIPO', 'UMCAD'), 0, 1)) %>% 
+  add_fitted_draws(m1, n = 100, re_formula = ~(lesion|species)) %>% 
+  mutate(.value2=.value*102.5)
+#plot
+ylims <- c(15, 2.5, 15, 5, 100, 100, 2.5, 15, 15, 30, 15, 15, 15, 100, 30)*102.5
+lookup <- data.frame(species=unique(draws$species), ylims)
+
+#those that need asterisks: acma, todi, lided, umcad, quch
+
+#get shades and zoom in without losing data
+#http://www.zachburchill.ml/ggplot_facets/
+source("rscripts/analysis2019/zoom_facets.R")
+plot_shade <- draws %>% 
+  inner_join(lookup, by = 'species') %>%
+  select(-.chain, -.iteration) %>% 
+  ggplot(., aes(x = lesion,y = .value2)) +
+  stat_lineribbon(aes(y = .value2), .width = .9, fill='grey', lwd=.5, color='gray20', alpha=.5) +
+  #add in asterisks for the 'significant' slopes
+  facet_wrap(~species, scales='free_y', nrow = 3, ncol = 5, labeller = labeller(
+    species=c(ACMA="ACMA*", 
+              ARME="ARME",
+              CEOL='CEOL',
+              HEAR='HEAR',
+              LIDE='LIDE',
+              LIDED='LIDED*',
+              PIPO='PIPO',
+              PSME='PSME',
+              QUAG='QUAG',
+              QUCH='QUCH*',
+              QUPA='QUPA',
+              SESE='SESE',
+              TODI='TODI*',
+              UMCA='UMCA',
+              UMCAD='UMCAD*'))) +
+  geom_point(data =filter(dtall, !(species=="ACMA"&countm>100)), aes(lesion, counte), color='steelblue', alpha=.2) +
+  labs(x=expression(paste("Lesion area (", cm^{2}, ")")),
+       y="Number of sporangia") +
+  scale_x_continuous(breaks=c(0, .5, 1)) + 
+  #define x and y limits for each panel
+  coord_panel_ranges((
+    panel_ranges=lapply(1:length(ylims), function(i)list(x=c(-.05, 1.3), y=c(-10, ylims[i])))
+    ))
+plot_shade
+
+
+
+################################################
+#saving model, outputs, and figures
+saveRDS(m1, file = 'output/models/spor_lesion_m1.rds')
+#saving outputs
+sink('output/lesion/spor_summary_lesion.txt')
+summary(m1, prob = .9)
+sink()
+pdf('plots/lesions/spor_multiple_m1.pdf')
+psims(dtall, m1)
+pp_check(m1, type = "intervals_grouped", group = "species")#huge improvement
+PREDplot
+pcoef(m1)
+dev.off()
+ggsave('plots/lesions/spor_predictions.jpg', PREDplot, width = 7, height = 5.5, dpi = 600, units = 'in')
+ggsave('plots/lesions/spor_predictions_tall.jpg', PREDplot, width =3.5, height = 5, dpi = 600, units = 'in')
+ggsave('plots/lesions/spor_predictions_wide.jpg', plot_shade, width =7, height = 4.5, dpi = 600, units = 'in')
+slopes <- pcoef(m1)
+slopes[[1]] %>% mutate_if(is.numeric, signif, 3) %>% 
+  write_csv('output/lesion/spor_randcoef.csv') 
+
+#model coefficents into dataframe
+vars <- get_variables(m1)[1:14]
+m1 %>% 
+  gather_draws(!!!syms(vars)) %>% 
+  median_hdi_sd() %>% 
+  mutate_if(is.numeric, signif, 3) %>% 
+  write_csv('output/lesion/spor_coef_estimates.csv')
+
+
+################################################
+#############################################
+#older stuff
 
 #separate models first
 #set prior first

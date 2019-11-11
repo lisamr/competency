@@ -1,0 +1,15 @@
+.variable,estimate,sd,lower,upper,width
+b_Intercept,3.21,0.886,1.76,4.63,0.9
+b_lesion,2.06,0.978,0.468,3.68,0.9
+b_broad,0.145,0.48,-0.648,0.936,0.9
+b_zi_Intercept,-1.22,0.25,-1.63,-0.807,0.9
+b_zi_speciesARME,-0.432,0.364,-1.03,0.156,0.9
+b_zi_speciesCEOL,-0.864,0.387,-1.5,-0.235,0.9
+b_zi_speciesLIDE,1.45,0.342,0.858,2,0.9
+b_zi_speciesLIDED,0.06,0.483,-0.758,0.83,0.9
+b_zi_speciesPSME,0.973,0.348,0.436,1.57,0.9
+b_zi_speciesTODI,0.702,0.45,-0.0483,1.41,0.9
+cor_species__Intercept__lesion,-0.409,0.39,-0.94,0.228,0.9
+sd_species__Intercept,1.94,0.604,1.13,2.92,0.9
+sd_species__lesion,1.91,1.05,0.00236,3.3,0.9
+shape,0.873,0.131,0.652,1.08,0.9

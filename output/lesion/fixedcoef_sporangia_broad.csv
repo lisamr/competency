@@ -1,7 +1,0 @@
-.variable,.value,.lower,.upper,.width,.point,.interval
-b_Intercept,-0.0206,-0.674,0.691,0.9,median,hdci
-b_lesion,0.972,0.121,1.94,0.9,median,hdci
-cor_species__Intercept__lesion,0.332,-0.345,1,0.9,median,hdci
-sd_leafID__Intercept,1.14,1.03,1.24,0.9,median,hdci
-sd_species__Intercept,1.14,0.606,1.7,0.9,median,hdci
-sd_species__lesion,0.909,0.00126,1.81,0.9,median,hdci

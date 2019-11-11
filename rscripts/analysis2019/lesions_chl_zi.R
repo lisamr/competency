@@ -11,10 +11,20 @@ library(ggridges)
 library(ggstance)
 library(forcats)
 
+#set ggplot theme
+theme_set(theme_bw(base_size = 9) + theme(panel.grid=element_blank()))
 #functions
 inv_logit <- function(x) 1 / (1 + exp(-x))
 logit <- function(x) log(x/(1-x))
-
+median_hdi_sd <- function(data, value=.value, width=.9){
+  value <- enquo(value)
+  data %>% 
+    summarise(estimate=median(!!value), 
+              lower=hdci(!!value, width)[1], 
+              upper=hdci(!!value, width)[2],
+              sd=sd(!!value),
+              width=.9)
+}
 #plotting functions
 psims <- function(data, model) {
   #sample from posterior
@@ -60,7 +70,9 @@ fpred <- function(data, model){
     facet_wrap(~species)+
     geom_point(data = data, aes(lesion, counte+.01), 
                color='steelblue', alpha=.4) +
-    scale_y_continuous(limits = c(0,5000))
+    scale_y_continuous(limits = c(0,5000))+
+    labs(x=expression(paste("Lesion area (", cm^{2}, ")")),
+         y="Number of chlamydospores")
 }
 
 ############################
@@ -162,17 +174,12 @@ mzinb3 <- brm(f3,prior2, data = df1,
               family = zero_inflated_negbinomial(),
               chains = 4, cores = 4, iter = 2000, 
               control = list(adapt_delta = .95, max_treedepth=15))
-sink('output/lesion/summary_lesionchl.txt')
 summary(mzinb3, prob = .9)
-sink()
-pdf('plots/lesions/multiple_chl_mzinb3.pdf')
 psims(df1, mzinb3)
 pp_check(mzinb3, type = "intervals_grouped", group = "species")#huge improvement
 fpred(df1, mzinb3) + scale_y_log10()
 pcoef(mzinb3)
-dev.off()
 slopes <- pcoef(mzinb3)
-write.csv(slopes[[1]], row.names = F, file = 'output/lesion/randcoef_chlamydos.csv') 
 
 #MODEL 4 ZINB2 zi~1
 f4 <- bf(count ~broad + lesion + (lesion|species) + offset(log(area_samp)), zi ~ 1, family = zero_inflated_negbinomial())
@@ -201,6 +208,12 @@ loo2 <- loo(mzin2)
 loo3 <- loo(mzinb3)
 loo4 <- loo(mzinb4)
 loo_compare(loo0, loo1, loo2, loo3, loo4) #%>% write.csv(., 'output/lesion/loocomparison_chlamydo.csv', row.names = F)
+#elpd_diff se_diff
+#mzinb3     0.0       0.0
+#mnb0     -19.9       7.9
+#mzinb4   -21.5       5.5
+#mzin2  -3609.3     972.0
+#mzin1  -3626.7     965.7
 
 #save models
 saveRDS(mnb0, file = 'output/models/ch_lesion_nb0.rds')
@@ -215,7 +228,24 @@ mzin2 <- readRDS(file = 'output/models/ch_lesion_zi2.rds')
 mzinb3 <- readRDS(file = 'output/models/ch_lesion_zinb3.rds')
 mzinb4 <- readRDS(file = 'output/models/ch_lesion_zinb4.rds')
 
-#model 1 had a different number of rows than 2 and 3. find out which ones to figure out why
-datmod <- standata(mzin1)
-datmod2 <- cbind(count=datmod$Y, datmod$X, area_samp=exp(datmod$offset))
-df1 %>% head
+#saving outputs
+sink('output/lesion/summary_lesionchl.txt')
+summary(mzinb3, prob = .9)
+sink()
+pdf('plots/lesions/multiple_chl_mzinb3.pdf')
+psims(df1, mzinb3)
+pp_check(mzinb3, type = "intervals_grouped", group = "species")#huge improvement
+fpred(df1, mzinb3) + scale_y_log10(limits=c(.001, 10000))
+pcoef(mzinb3)
+dev.off()
+slopes <- pcoef(mzinb3)
+slopes[[1]] %>% mutate_if(is.numeric, signif, 3) %>% 
+  write_csv('output/lesion/randcoef_chlamydos.csv') 
+
+#model coefficents into dataframe
+vars <- get_variables(mzinb3)[1:14]
+out <- mzinb3 %>% 
+  gather_draws(!!!syms(vars)) %>% 
+  median_hdi_sd() %>% 
+  mutate_if(is.numeric, signif, 3) %>% 
+  write_csv('output/lesion/chl_coef_estimates.csv')

@@ -1,0 +1,29 @@
+﻿,Sporangia,,,,Chlamydospores,,,
+,Median,SD,5% CI,95% CI,Median,SD,5% CI,95% CI
+a) Leaf disc assay,,,,,,,,
+ACMA,,,,,,,,
+ARME,,,,,,,,
+CEOL,,,,,,,,
+HEAR,,,,,--,--,--,--
+LIDE,,,,,,,,
+QUAG,,,,,--,--,--,--
+QUCH,,,,,--,--,--,--
+QUPA,,,,,--,--,--,--
+TODI,,,,,,,,
+UMCA,,,,,--,--,--,--
+Individual-level intercept variation,,,,,--,--,--,--
+Zero-inflated species ACMA,--,--,--,--,,,,
+Zero-inflated species ARME,--,--,--,--,,,,
+Zero-inflated species CEOL,--,--,--,--,,,,
+Zero-inflated species LIDE,--,--,--,--,,,,
+Zero-inflated species TODI,--,--,--,--,,,,
+Phi (dispersion parameter),--,--,--,--,,,,
+b) Leaf dip assay,,,,,,,,
+LIDED,,,,,,,,
+PIPO,,,,,--,--,--,--
+PSME,,,,,,,,
+SESE,,,,,--,--,--,--
+UMCAD,,,,,--,--,--,--
+Individual-level intercept variation,,,,,--,--,--,--
+Zero-inflated intercept,--,--,--,--,,,,
+Phi (dispersion parameter),--,--,--,--,,,,

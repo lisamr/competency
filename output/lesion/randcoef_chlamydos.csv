@@ -1,8 +1,8 @@
-"species","term","slope",".lower",".upper",".width",".point",".interval"
-"ACMA","lesion",1.72117240760266,0.413551422357608,2.92271562265384,0.9,"median","hdci"
-"ARME","lesion",1.19814017457129,-0.640239122964645,3.03875491458748,0.9,"median","hdci"
-"CEOL","lesion",1.51808368316448,0.767834464770742,2.21801220167149,0.9,"median","hdci"
-"LIDE","lesion",2.54718411702007,-0.989675323870632,7.01056994817623,0.9,"median","hdci"
-"LIDED","lesion",2.63149034437528,-1.13597554027362,7.42332769776466,0.9,"median","hdci"
-"PSME","lesion",1.72671220063765,-1.27233501097301,4.40811048802536,0.9,"median","hdci"
-"TODI","lesion",5.59547708102368,1.58813025103685,8.81213213704878,0.9,"median","hdci"
+species,term,slope,.lower,.upper,.width,.point,.interval
+ACMA,lesion,1.72,0.414,2.92,0.9,median,hdci
+ARME,lesion,1.2,-0.64,3.04,0.9,median,hdci
+CEOL,lesion,1.52,0.768,2.22,0.9,median,hdci
+LIDE,lesion,2.55,-0.99,7.01,0.9,median,hdci
+LIDED,lesion,2.63,-1.14,7.42,0.9,median,hdci
+PSME,lesion,1.73,-1.27,4.41,0.9,median,hdci
+TODI,lesion,5.6,1.59,8.81,0.9,median,hdci

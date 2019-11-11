@@ -1,0 +1,16 @@
+.variable,estimate,sd,lower,upper,width,assay
+b_speciesACMA,7.35,0.206,7.01,7.68,0.9,broad
+b_speciesARME,4.07,0.222,3.72,4.43,0.9,broad
+b_speciesCEOL,7.2,0.207,6.86,7.54,0.9,broad
+b_speciesLIDE,2.84,0.454,2.11,3.58,0.9,broad
+b_speciesTODI,5.46,0.311,4.95,5.98,0.9,broad
+b_zi_speciesACMA,-3.82,1.37,-6.12,-2.19,0.9,broad
+b_zi_speciesARME,-2.04,0.697,-3.19,-1.07,0.9,broad
+b_zi_speciesCEOL,-3.85,1.29,-5.94,-2.04,0.9,broad
+b_zi_speciesLIDE,1.11,0.439,0.37,1.79,0.9,broad
+b_zi_speciesTODI,0.327,0.344,-0.231,0.892,0.9,broad
+shape,0.792,0.108,0.625,0.979,0.9,broad
+b_speciesLIDED,0.821,0.668,-0.215,1.96,0.9,conif
+b_speciesPSME,4.19,0.344,3.61,4.72,0.9,conif
+b_zi_Intercept,0.0968,0.428,-0.549,0.712,0.9,conif
+shape,0.806,0.375,0.255,1.42,0.9,conif
