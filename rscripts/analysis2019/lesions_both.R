@@ -186,24 +186,25 @@ plot_shade <- draws %>%
   select(-.chain, -.iteration) %>% 
   ggplot(., aes(x = lesion,y = .value2)) +
   stat_lineribbon(aes(y = .value2), .width = .9, fill='grey', lwd=.5, color='gray20', alpha=.5) +
+  #geom_line(aes(group = paste(species, .draw)), alpha = .1) +
   #add in asterisks for the 'significant' slopes
   facet_wrap(~species, scales='free_y', nrow = 3, ncol = 5, labeller = labeller(
-    species=c(ACMA="ACMA*", 
+    species=c(ACMA="ACMA**", 
               ARME="ARME",
               CEOL='CEOL',
               HEAR='HEAR',
               LIDE='LIDE',
-              LIDED='LIDED*',
+              LIDED='LIDE-D**',
               PIPO='PIPO',
               PSME='PSME',
               QUAG='QUAG',
-              QUCH='QUCH*',
+              QUCH='QUCH**',
               QUPA='QUPA',
               SESE='SESE',
-              TODI='TODI*',
+              TODI='TODI**',
               UMCA='UMCA',
-              UMCAD='UMCAD*'))) +
-  geom_point(data =filter(dtall, !(species=="ACMA"&countm>100)), aes(lesion, counte), color='steelblue', alpha=.2) +
+              UMCAD='UMCA-D**'))) +
+  geom_point(data =filter(dtall, !(species=="ACMA"&countm>100)), aes(lesion, counte), alpha=.2) +
   labs(x=expression(paste("Lesion area (", cm^{2}, ")")),
        y="Number of sporangia") +
   scale_x_continuous(breaks=c(0, .5, 1)) + 
@@ -225,12 +226,10 @@ sink()
 pdf('plots/lesions/spor_multiple_m1.pdf')
 psims(dtall, m1)
 pp_check(m1, type = "intervals_grouped", group = "species")#huge improvement
-PREDplot
+plot_shade
 pcoef(m1)
 dev.off()
-ggsave('plots/lesions/spor_predictions.jpg', PREDplot, width = 7, height = 5.5, dpi = 600, units = 'in')
-ggsave('plots/lesions/spor_predictions_tall.jpg', PREDplot, width =3.5, height = 5, dpi = 600, units = 'in')
-ggsave('plots/lesions/spor_predictions_wide.jpg', plot_shade, width =7, height = 4.5, dpi = 600, units = 'in')
+ggsave('plots/lesions/spor_predictions.jpg', plot_shade, width =7, height = 4.5, dpi = 600, units = 'in')
 slopes <- pcoef(m1)
 slopes[[1]] %>% mutate_if(is.numeric, signif, 3) %>% 
   write_csv('output/lesion/spor_randcoef.csv') 

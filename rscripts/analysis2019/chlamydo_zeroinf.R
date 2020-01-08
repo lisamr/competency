@@ -406,18 +406,22 @@ prC <- df1c %>%
   mutate(assay='Leaf dip')
 pr <- bind_rows(prB, prC)
 
+#change the name of LIDED
+pr$species2 <- recode_factor(pr$species, LIDED="LIDE-D")
+
 #plot 2 panel predictions
-PLOT <- ggplot(pr, aes(y = fct_rev(species), x = .value)) +
-  geom_density_ridges(lwd=0, color=NA, panel_scaling = F)+
+options(scipen=10000)#no scientific notation!
+PLOT <- ggplot(pr, aes(y = fct_rev(species2), x = .value)) +
+  geom_density_ridges(lwd=0, color=NA, panel_scaling = F, scale=1.35)+
   stat_pointintervalh(point_interval = median_hdi, .width = c(.9),shape=16, size=.1)+
   labs(x=expression(paste("Mean chlamydospores/", cm^{2})), y='Species')+
   #scale_x_log10()+
   scale_x_log10(limits=c(.1, 5000), breaks=c(.1, 1, 10, 100, 1000))+
   facet_grid(rows = vars(fct_rev(assay)), scales='free_y', space = 'free_y') 
-options(scipen=10000)#no scientific notation!
+PLOT
 ggsave('plots/chlamydos_both/predicted_2panels.jpg', 
        PLOT, 
-       width = 3.5, height = 2.55, units = 'in',
+       width = 3.5, height = 2., units = 'in',
        dpi = 600)
 
 

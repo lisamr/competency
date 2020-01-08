@@ -55,12 +55,13 @@ df1[is.na(df1$countm),] %>% View#the samples without counts were too low in vol 
 #model sporangia counts. include leaf area as an offset or standardize the posteriors after modeling? I think it should be an offset.
 
 #make data tall in regards to counts
-dtall <- melt(df1, id.vars = c("species", "leafID", 'leaf_area_cm2'), measure.vars = c("count1", "count2", "count3"), variable.name = "sample", value.name = "count") %>% 
+dtall <- df1 %>% 
+  melt(df1, id.vars = c("species", "leafID", 'leaf_area_cm2'), measure.vars = c("count1", "count2", "count3"), variable.name = "sample", value.name = "count") %>% 
   filter(!is.na(count), !is.na(leaf_area_cm2)) %>% 
   arrange(leafID) 
 #split data by assay--broadleaf and conifer. modeling them seperately.
-dtallb <- dtall %>% filter(leafID<=530) %>% droplevels()
-dtallc <- dtall %>% filter(leafID>530) %>% droplevels()
+dtallb <- dtall %>% filter(leafID<=530 | species=="CONTROL") %>% droplevels()
+dtallc <- dtall %>% filter(leafID>530, species!="CONTROL") %>% droplevels()
 
 #figure out priors
 #species int. 0-1000 sp/cm2? based on larch study. larch was above (~2000) but other species were way below. divide that by 102.5: 0-10 mostly
@@ -125,11 +126,6 @@ sim_mc <- add_predicted_draws(dtallc, mc) %>%
   sample_draws(50) 
 #bind predictions together before plotting fit
 sims <- bind_rows(sim_mb, sim_mc)
-#set levels order of species
-sims$species <- as.factor(sims$species)
-neworder <- c(1:5, 9:11, 13, 14, 6, 15, 7, 8, 12)
-levels(sims$species) <- levels(sims$species)[neworder]
-levels(dtall$species) <- levels(dtall$species)[neworder]
 
 #plot against your own data
 pdf('plots/sporangia_both/modelfit_brms.pdf', 10, 8)
@@ -141,7 +137,7 @@ dev.off()
 
 #coef plot. keep models seperate.
 coefs_mb <- mb %>% 
-  gather_draws(b_speciesACMA, b_speciesARME, b_speciesCEOL, b_speciesHEAR, b_speciesLIDE, b_speciesQUAG, b_speciesQUCH, b_speciesQUPA, b_speciesTODI, b_speciesUMCA, sd_leafID__Intercept) %>%
+  gather_draws(b_speciesCONTROL, b_speciesACMA, b_speciesARME, b_speciesCEOL, b_speciesHEAR, b_speciesLIDE, b_speciesQUAG, b_speciesQUCH, b_speciesQUPA, b_speciesTODI, b_speciesUMCA, sd_leafID__Intercept) %>%
   rename(par=.variable, value=.value) %>% 
   mutate(assay='broad')
 coefs_mc <- mc %>% 
@@ -175,21 +171,44 @@ median_hdi_sd(post, .valueSTD) %>%
 #fix species factor order
 #post$species <- factor(post$species, levels = unique(post$species)[c(1:11, 15, 12:14)])
 #plot it!
-post_plot <- ggplot(post, aes(y = fct_rev(species), x = .valueSTD)) +
-  geom_density_ridges(lwd=0, panel_scaling = F)+
-  stat_pointintervalh(point_interval = median_hdi, .width = c(.9),shape=16, size=.1)+
+#change control and detached name for figure
+post$species2 <- recode_factor(post$species, 
+  CONTROL="Inoculum only",
+  LIDED="LIDE-D",
+  UMCAD="UMCA-D")
+# Relevel control to the end
+post$species2 <- fct_relevel(post$species2, 'ACMA', 'ARME', 'CEOL', 'HEAR', 'LIDE', 'QUAG', 'QUCH', 'QUPA', 'TODI', 'UMCA', 'LIDE-D', 'PIPO', 'PSME', 'SESE', 'UMCA-D', 'Inoculum only')
+
+post_plot <- post %>% 
+  #filter(species!="CONTROL") %>% 
+  ggplot(., aes(y = fct_rev(species2), x = .valueSTD)) +
+  geom_density_ridges(scale=1.35, lwd=0, panel_scaling = F, rel_min_height = 0.001)+
+  stat_pointintervalh(point_interval = median_hdi, .width =.9, shape=16, size=.1)+
   labs( x=expression(paste("Mean sporangia/", cm^{2})), 
-    y='Species') +
-  facet_grid(rows = vars(fct_rev(assay)), scales='free_y', space = 'free_y') + 
+        y='Species') +
+   facet_grid(rows = vars(fct_rev(assay)), scales='free_y', space = 'free_y') + 
   scale_x_continuous(limits=c(-25, 1250), breaks = seq(0,1250, 250))
-ggsave('plots/sporangia_both/predicted_2panels.jpg', post_plot, width = 7, height = 5.5, dpi = 600, units = 'in')
+post_plot
+ggsave('plots/sporangia_both/predicted_2panels.jpg', post_plot, width = 7, height = 4, dpi = 600, units = 'in')
+
+#are the distributions for the species near zero really that broad? They're not shaped correctly
+plot(density(post$.valueSTD[post$species=="CONTROL"]))
+plot(density(post$.valueSTD[post$species=="ARME"]))
+plot(density(post$.valueSTD[post$species=="PIPO"]))
+post %>% 
+  #filter(species!="CONTROL") %>% 
+  ggplot(., aes(y = fct_rev(species2), x = .valueSTD)) +
+  geom_density_ridges(scale=.95, panel_scaling = F, rel_min_height = 0.001)+
+  stat_pointintervalh(point_interval = median_hdi, .width = c(.9),shape=16, size=.1)+
+  geom_vline(lty=2, lwd=.5, xintercept = c(10.4, 18, 35.6))
+#see vignette's "Using alternative stats" section here: https://cran.r-project.org/web/packages/ggridges/vignettes/introduction.html
 
 #want latin names for species for poster figure
-unique(post$species)
 latin_names <- data.frame(
-  species = unique(post$species),
+  species = unique(post$species)[-which(unique(post$species)=="CONTROL")],
   latin = c('Acer macrophyllum', 'Arbutus menziesii', 'Ceanothus oliganthus', 'Heteromeles arbutifolia', 'Notholithocarpus densiflorus', 'Quercus agrifolia', 'Quercus chrysolepis', 'Quercus parvula', 'Toxicodendron diversilobum', 'Umbellularia californica', 'Notholithocarpus densiflorus', 'Pinus ponderosa', 'Pseudotsuga menziesii', 'Sequoia sempervirens', 'Umbellularia california'))
-post2 <- left_join(post, latin_names, by='species')
+post2 <- left_join(post, latin_names, by='species') %>% 
+  filter(species !="CONTROL")
 #add in line break to latin name
 levels(post2$latin) <- gsub(" ", "\n", levels(post2$latin))
 #plot
@@ -207,15 +226,16 @@ ggsave('plots/sporangia_both/predicted_2panels_latin.jpg', post_plotlatin, width
 #can't figure out how to do it the tidy way, so doing it kinda clunky.
 
 #extract posterior of following coefficients
+get_variables(mb)
 exb <- mb %>% 
-  spread_draws(b_speciesACMA, b_speciesARME, b_speciesCEOL, b_speciesHEAR, b_speciesLIDE, b_speciesQUAG, b_speciesQUCH, b_speciesQUPA, b_speciesTODI, b_speciesUMCA) %>% 
+  spread_draws(b_speciesCONTROL, b_speciesACMA, b_speciesARME, b_speciesCEOL, b_speciesHEAR, b_speciesLIDE, b_speciesQUAG, b_speciesQUCH, b_speciesQUPA, b_speciesTODI, b_speciesUMCA) %>% 
   select(-c(.chain, .iteration, .draw)) %>% as.data.frame()
 exc <- mc %>% 
   spread_draws(b_speciesLIDED, b_speciesPIPO, b_speciesPSME, b_speciesSESE, b_speciesUMCAD) %>% 
   select(-c(.chain, .iteration, .draw)) %>% as.data.frame()
 
 #get pairwise comparisons
-pairs_b <- combn(1:10,2)
+pairs_b <- combn(1:11,2)
 pairs_c <- combn(1:5,2)
 f <- function(ex, pairs, x){
   spdiff <-  (ex[,pairs[1,x]]-ex[,pairs[2,x]])

@@ -7,20 +7,20 @@ Samples: 4 chains, each with iter = 3000; warmup = 1500; thin = 1;
 
 Group-Level Effects: 
 ~leafID (Number of levels: 423) 
-              Estimate Est.Error l-90% CI u-90% CI Rhat Bulk_ESS
-sd(Intercept)     1.18      0.06     1.09     1.29 1.00     1458
-              Tail_ESS
-sd(Intercept)     2593
+              Estimate Est.Error l-90% CI u-90% CI Rhat
+sd(Intercept)     1.18      0.06     1.09     1.29 1.00
+              Bulk_ESS Tail_ESS
+sd(Intercept)     1458     2593
 
 ~species (Number of levels: 15) 
-                      Estimate Est.Error l-90% CI u-90% CI Rhat
-sd(Intercept)             1.43      0.35     0.95     2.07 1.00
-sd(lesion)                1.75      0.80     0.53     3.11 1.01
-cor(Intercept,lesion)     0.28      0.38    -0.39     0.85 1.00
-                      Bulk_ESS Tail_ESS
-sd(Intercept)             2135     3630
-sd(lesion)                 720      680
-cor(Intercept,lesion)     1994     2386
+                      Estimate Est.Error l-90% CI u-90% CI
+sd(Intercept)             1.43      0.35     0.95     2.07
+sd(lesion)                1.75      0.80     0.53     3.11
+cor(Intercept,lesion)     0.28      0.38    -0.39     0.85
+                      Rhat Bulk_ESS Tail_ESS
+sd(Intercept)         1.00     2135     3630
+sd(lesion)            1.01      720      680
+cor(Intercept,lesion) 1.00     1994     2386
 
 Population-Level Effects: 
           Estimate Est.Error l-90% CI u-90% CI Rhat Bulk_ESS

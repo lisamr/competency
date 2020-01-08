@@ -57,6 +57,8 @@ dfinal <- df %>%
   arrange(leafID)
 
 #merge gps data to master file
-dfinal <- merge(gps, dfinal, by=c("species", "ind")) %>% arrange(leafID)
+dfinal <- left_join(dfinal, gps, by=c("species", "ind"))%>% 
+  arrange(leafID)
+unique(dfinal$species)
 
 write.csv(dfinal, "master_tall.csv", row.names = F)

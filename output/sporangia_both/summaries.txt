@@ -1,27 +1,42 @@
  Family: poisson 
   Links: mu = log 
 Formula: count ~ -1 + species + (1 | leafID) + offset(log(leaf_area_cm2)) 
-   Data: dtallb (Number of observations: 951) 
+   Data: dtallb (Number of observations: 975) 
 Samples: 4 chains, each with iter = 4000; warmup = 2000; thin = 1;
          total post-warmup samples = 8000
 
 Group-Level Effects: 
-~leafID (Number of levels: 317) 
-              Estimate Est.Error l-90% CI u-90% CI Rhat Bulk_ESS Tail_ESS
-sd(Intercept)     1.17      0.06     1.07     1.28 1.01     1651     2980
+~leafID (Number of levels: 325) 
+              Estimate Est.Error l-90% CI u-90% CI Rhat
+sd(Intercept)     1.16      0.06     1.07     1.27 1.00
+              Bulk_ESS Tail_ESS
+sd(Intercept)     1680     3656
 
 Population-Level Effects: 
-            Estimate Est.Error l-90% CI u-90% CI Rhat Bulk_ESS Tail_ESS
-speciesACMA     0.06      0.23    -0.31     0.44 1.00     2010     3249
-speciesARME    -1.46      0.28    -1.92    -1.01 1.00     4483     5673
-speciesCEOL    -0.71      0.25    -1.11    -0.31 1.00     2686     4233
-speciesHEAR    -0.86      0.25    -1.27    -0.44 1.00     3187     4267
-speciesLIDE     1.63      0.20     1.30     1.98 1.01      998     1981
-speciesQUAG    -0.39      0.24    -0.79     0.01 1.00     2264     3599
-speciesQUCH     0.06      0.23    -0.33     0.44 1.00     1715     2905
-speciesQUPA     0.09      0.23    -0.29     0.46 1.00     1880     2623
-speciesTODI    -0.12      0.23    -0.51     0.26 1.00     1833     3259
-speciesUMCA     2.04      0.21     1.69     2.40 1.01      686     1409
+               Estimate Est.Error l-90% CI u-90% CI Rhat
+speciesACMA        0.07      0.23    -0.30     0.45 1.00
+speciesARME       -1.46      0.28    -1.92    -1.01 1.00
+speciesCEOL       -0.70      0.24    -1.10    -0.31 1.00
+speciesCONTROL    -2.62      0.70    -3.81    -1.54 1.00
+speciesHEAR       -0.86      0.25    -1.27    -0.45 1.00
+speciesLIDE        1.63      0.21     1.27     1.98 1.01
+speciesQUAG       -0.40      0.23    -0.78    -0.02 1.00
+speciesQUCH        0.06      0.23    -0.33     0.44 1.00
+speciesQUPA        0.08      0.22    -0.29     0.46 1.00
+speciesTODI       -0.13      0.23    -0.50     0.25 1.00
+speciesUMCA        2.03      0.21     1.68     2.39 1.00
+               Bulk_ESS Tail_ESS
+speciesACMA        1954     3063
+speciesARME        5311     5252
+speciesCEOL        3088     4749
+speciesCONTROL    10023     6464
+speciesHEAR        3347     4554
+speciesLIDE         853     1688
+speciesQUAG        2722     4346
+speciesQUCH        1785     3491
+speciesQUPA        2112     3482
+speciesTODI        2063     3729
+speciesUMCA         581     1281
 
 Samples were drawn using sampling(NUTS). For each parameter, Eff.Sample 
 is a crude measure of effective sample size, and Rhat is the potential 
@@ -35,16 +50,24 @@ Samples: 4 chains, each with iter = 2000; warmup = 1000; thin = 1;
 
 Group-Level Effects: 
 ~leafID (Number of levels: 106) 
-              Estimate Est.Error l-90% CI u-90% CI Rhat Bulk_ESS Tail_ESS
-sd(Intercept)     1.49      0.16     1.24     1.77 1.00      871     1520
+              Estimate Est.Error l-90% CI u-90% CI Rhat
+sd(Intercept)     1.48      0.17     1.23     1.77 1.00
+              Bulk_ESS Tail_ESS
+sd(Intercept)      897     1291
 
 Population-Level Effects: 
-             Estimate Est.Error l-90% CI u-90% CI Rhat Bulk_ESS Tail_ESS
-speciesLIDED     0.95      0.48     0.18     1.73 1.00      898     1500
-speciesPIPO     -3.15      0.65    -4.26    -2.12 1.00     3756     3162
-speciesPSME     -0.38      0.31    -0.92     0.13 1.00      852     1658
-speciesSESE     -0.52      0.30    -1.02    -0.02 1.01      534     1294
-speciesUMCAD     0.52      0.54    -0.36     1.40 1.00      764     1458
+             Estimate Est.Error l-90% CI u-90% CI Rhat
+speciesLIDED     0.93      0.47     0.15     1.70 1.00
+speciesPIPO     -3.14      0.65    -4.28    -2.12 1.00
+speciesPSME     -0.37      0.32    -0.90     0.14 1.00
+speciesSESE     -0.52      0.29    -0.99    -0.04 1.00
+speciesUMCAD     0.46      0.53    -0.37     1.32 1.01
+             Bulk_ESS Tail_ESS
+speciesLIDED      661     1240
+speciesPIPO      3128     2399
+speciesPSME       985     1504
+speciesSESE       738     1411
+speciesUMCAD      735     1294
 
 Samples were drawn using sampling(NUTS). For each parameter, Eff.Sample 
 is a crude measure of effective sample size, and Rhat is the potential 
