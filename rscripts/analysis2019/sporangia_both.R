@@ -179,29 +179,20 @@ post$species2 <- recode_factor(post$species,
 # Relevel control to the end
 post$species2 <- fct_relevel(post$species2, 'ACMA', 'ARME', 'CEOL', 'HEAR', 'LIDE', 'QUAG', 'QUCH', 'QUPA', 'TODI', 'UMCA', 'LIDE-D', 'PIPO', 'PSME', 'SESE', 'UMCA-D', 'Inoculum only')
 
+#halfeye function. geom_density_ridges plots fake data. use halfeye from tidybayes instead.
 post_plot <- post %>% 
   #filter(species!="CONTROL") %>% 
   ggplot(., aes(y = fct_rev(species2), x = .valueSTD)) +
-  geom_density_ridges(scale=1.35, lwd=0, panel_scaling = F, rel_min_height = 0.001)+
-  stat_pointintervalh(point_interval = median_hdi, .width =.9, shape=16, size=.1)+
+  geom_halfeyeh(.width = .9, size=.1, fatten_point = .1, relative_scale = 2, point_interval = median_hdi) +
+  #geom_density_ridges(scale=1.35, lwd=0, panel_scaling = F, rel_min_height = 0.1)+
+  #stat_pointintervalh(point_interval = median_hdi, .width =.9, shape=16, size=.1)+
   labs( x=expression(paste("Mean sporangia/", cm^{2})), 
         y='Species') +
-   facet_grid(rows = vars(fct_rev(assay)), scales='free_y', space = 'free_y') + 
-  scale_x_continuous(limits=c(-25, 1250), breaks = seq(0,1250, 250))
-post_plot
-ggsave('plots/sporangia_both/predicted_2panels.jpg', post_plot, width = 7, height = 4, dpi = 600, units = 'in')
+  facet_grid(rows = vars(fct_rev(assay)), scales='free_y', space = 'free_y') + 
+  scale_x_continuous(limits=c(0, 1250), breaks = seq(0,1250, 250))
+post_plot 
 
-#are the distributions for the species near zero really that broad? They're not shaped correctly
-plot(density(post$.valueSTD[post$species=="CONTROL"]))
-plot(density(post$.valueSTD[post$species=="ARME"]))
-plot(density(post$.valueSTD[post$species=="PIPO"]))
-post %>% 
-  #filter(species!="CONTROL") %>% 
-  ggplot(., aes(y = fct_rev(species2), x = .valueSTD)) +
-  geom_density_ridges(scale=.95, panel_scaling = F, rel_min_height = 0.001)+
-  stat_pointintervalh(point_interval = median_hdi, .width = c(.9),shape=16, size=.1)+
-  geom_vline(lty=2, lwd=.5, xintercept = c(10.4, 18, 35.6))
-#see vignette's "Using alternative stats" section here: https://cran.r-project.org/web/packages/ggridges/vignettes/introduction.html
+ggsave('plots/sporangia_both/predicted_2panels.jpg', post_plot, width = 7, height = 4, units = 'in')
 
 #want latin names for species for poster figure
 latin_names <- data.frame(
