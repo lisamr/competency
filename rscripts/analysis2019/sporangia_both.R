@@ -232,14 +232,21 @@ f <- function(ex, pairs, x){
   spdiff <-  (ex[,pairs[1,x]]-ex[,pairs[2,x]])
   hdci(spdiff, .9)
 }
+fmeans <- function(ex, pairs, x){
+  spdiff <-  (ex[,pairs[1,x]]-ex[,pairs[2,x]])
+  mean(spdiff, .9)
+}
 diffs_b <- sapply(1:ncol(pairs_b),function(x) f(exb, pairs_b, x))
 diffs_c <- sapply(1:ncol(pairs_c),function(x) f(exc, pairs_c, x))
+means_b <- sapply(1:ncol(pairs_b),function(x) fmeans(exb, pairs_b, x))
+means_c <- sapply(1:ncol(pairs_c),function(x) fmeans(exc, pairs_c, x))
 
 #put contrasts into a readable dataframe
 sppb <- colnames(exb) %>% str_replace('b_species', '')
 sppc <- colnames(exc) %>% str_replace('b_species', '')
-diffsdf_b <- rbind(pairs_b, diffs_b) %>% t %>% as.data.frame
-diffsdf_c <- rbind(pairs_c, diffs_c) %>% t %>% as.data.frame
+diffsdf_b <- rbind(pairs_b, diffs_b) %>% t %>% as.data.frame %>% mutate(mean = means_b)
+diffsdf_c <- rbind(pairs_c, diffs_c) %>% t %>% as.data.frame %>% mutate(mean = means_c)
+
 diffsdf_b <- diffsdf_b %>% 
   mutate(sp1=sppb[diffsdf_b[,1]],
          sp2=sppb[diffsdf_b[,2]],
