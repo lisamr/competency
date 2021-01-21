@@ -1,7 +1,8 @@
 # competency
 
-Analysis of inoculation tests for determining competencies of hosts for P. ramorum. 
-Publication: "Sporulation potential of Phytophthora ramorum differs among common California plant species in the Big Sur region" (https://doi.org/10.1094/PDIS-03-20-0485-RE)  
+Analysis of inoculation tests for determining competencies of hosts for P. ramorum.  
+
+**Publication: "Sporulation potential of Phytophthora ramorum differs among common California plant species in the Big Sur region" (https://doi.org/10.1094/PDIS-03-20-0485-RE)**  
 
 The most common tree species in the Big Sur area were used to test the competency of P. ramorum, the causative agent of Sudden Oak Death. We inoculated leaves from 32 individuals for each species with inoculum for the treatment and water for the controls. We quantified spore production of sporangia, the spores important for transmission, and chlamydospores, the spores potentially important for survival in the soil. We also assessed the utility of lesion size in predicting sporulation. 
 
